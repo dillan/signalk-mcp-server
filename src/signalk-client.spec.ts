@@ -855,6 +855,32 @@ describe('SignalKClient', () => {
         longitude: -76.4922,
       });
     });
+
+    test('round-trips an anchor-watch path (navigation.anchor.currentRadius)', async () => {
+      // Anchor watch needs no new client method - it is just getPathValue on the
+      // navigation.anchor.* paths. This locks that round trip (request -> value).
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            value: 23.4,
+            meta: { units: 'm', description: 'Current distance from anchor' },
+            timestamp: '2026-06-12T00:00:00.000Z',
+            $source: 'anchoralarm',
+          }),
+      } as Response);
+
+      const result = await client.getPathValue(
+        'navigation.anchor.currentRadius',
+      );
+
+      expect(result.path).toBe('navigation.anchor.currentRadius');
+      expect(result.data.value).toBe(23.4);
+      expect(result.data.meta.units).toBe('m');
+      expect(decodeURIComponent(mockFetch.mock.calls[0][0] as string)).toContain(
+        'navigation/anchor/currentRadius',
+      );
+    });
   });
 
   describe('Connection Management', () => {

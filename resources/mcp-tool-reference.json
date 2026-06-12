@@ -158,6 +158,14 @@
       "Use execute_code with getPathValue() for specific diagnostics"
     ]
   },
+  "recipes": {
+    "description": "Ready-made execute_code snippets that combine existing functions",
+    "anchor_watch": {
+      "purpose": "Check whether the vessel is dragging anchor",
+      "how": "No special function is needed - read the navigation.anchor.* paths with getPathValue. Compare navigation.anchor.currentRadius (current distance from where the anchor was dropped) against navigation.anchor.maxRadius (the alarm radius / set scope). Both are in metres. currentRadius at or beyond maxRadius means the boat has swung outside its set scope and may be dragging. The values are null when no anchor watch is set.",
+      "example": "(async () => {\n  const cur = await getPathValue('navigation.anchor.currentRadius');\n  const max = await getPathValue('navigation.anchor.maxRadius');\n  const current = cur.data?.value ?? null;\n  const limit = max.data?.value ?? null;\n  if (current == null || limit == null) return JSON.stringify({ anchorWatch: false, note: 'no anchor watch set' });\n  return JSON.stringify({ currentM: Math.round(current), maxM: Math.round(limit), dragging: current > limit, marginM: Math.round(limit - current) });\n})()"
+    }
+  },
   "efficiency_guidelines": {
     "filter_in_isolate": "Always filter/transform data in the isolate before returning",
     "combine_calls": "Make multiple SDK calls in a single execute_code invocation",
