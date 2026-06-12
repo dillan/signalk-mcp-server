@@ -5,6 +5,17 @@ All notable changes to the SignalK MCP Server project will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Server no longer crashes at startup on Node versions without an `isolated-vm` build (e.g. Node 25).** `isolated-vm` was imported unconditionally at module load, so a missing/unbuildable native addon killed the process before it could answer the MCP `initialize` request. It is now loaded lazily (dynamic import on first `execute_code`) and declared as an `optionalDependency`, so the server always boots and `npm install` / `npx` never hard-fail. `execute_code` returns a clear "code execution unavailable" message when the addon cannot be loaded.
+
+### Changed
+- Upgraded `@modelcontextprotocol/sdk` from `^0.5.0` to `^1.29.0`. The low-level `Server` API is unchanged; `tsconfig` `moduleResolution` is set to `bundler` so the SDK's `exports`-map subpaths resolve. Added `zod` as an explicit dependency.
+- Moved `isolated-vm` to `optionalDependencies` and bumped it to `^6.1.2` (supports Node >=22). **Node 22 LTS is recommended** for full `execute_code` support with V8 isolation.
+- Bumped `dotenv` to `^17` (startup banner silenced with `quiet: true` to keep stdout clean for the stdio transport); removed the deprecated `@types/dotenv` stub; aligned `@types/node` to the supported LTS range.
+- Raised `engines.node` to `>=20.18.0`. CI now runs on Node 20/22 (required) and 24/25 (non-blocking); the npm publish workflow uses `softprops/action-gh-release@v2` and Node 22.
+
 ## [1.0.8] - 2025-11-26
 
 ### Fixed

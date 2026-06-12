@@ -9,10 +9,20 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    
+    # Newer Node versions may not yet have an isolated-vm prebuilt; those legs
+    # are allowed to fail (the server must still boot — execute_code degrades
+    # gracefully once isolated-vm is an optional, lazily-loaded dependency).
+    continue-on-error: ${{ matrix.experimental || false }}
+
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        node-version: ['20.x', '22.x']
+        include:
+          - node-version: '24.x'
+            experimental: true
+          - node-version: '25.x'
+            experimental: true
     
     # Note: Service containers don't support custom commands/arguments
     # We'll use docker compose in the e2e-tests.yml workflow instead

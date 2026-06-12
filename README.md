@@ -234,8 +234,10 @@ SERVER_VERSION=1.0.6
 
 ### Prerequisites
 
-- Node.js 18.0.0 or higher
+- **Node.js 20.18+ (Node 22 LTS recommended)**
 - Access to a SignalK server
+
+> **Code execution & Node version:** `execute_code` runs in a V8 isolate via the native [`isolated-vm`](https://github.com/laverdet/isolated-vm) addon, which is an **optional dependency**. The server always starts regardless, but `execute_code` only works on a Node version that has a working `isolated-vm` build — **Node 22 LTS is recommended**. On a Node version without one (e.g. Node 25), the server still boots and the other tools work, but `execute_code` reports that code execution is unavailable.
 
 ### Setup
 

@@ -18,12 +18,12 @@ MCP (Model Context Protocol) server that provides AI agents with access to Signa
 - Discover available data paths on the SignalK installation
 
 ## TECHNICAL REQUIREMENTS
-Runtime: Node.js 18+ (native fetch support)
+Runtime: Node.js 20.18+ (Node 22 LTS recommended; native fetch support)
 Transport: HTTP REST API to SignalK server
 Protocol: MCP (Model Context Protocol)
 Data Format: JSON (SignalK data)
 Architecture: V8 isolate-based code execution with RPC bindings
-Dependencies: isolated-vm for secure code execution
+Dependencies: isolated-vm (optional, lazily loaded) for secure code execution — requires a Node version with a working isolated-vm build (Node 22 LTS recommended)
 
 ## EXPLICITLY OUT OF SCOPE (MVP)
 - NO collision avoidance calculations

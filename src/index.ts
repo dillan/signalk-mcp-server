@@ -3,7 +3,9 @@
 import * as dotenv from 'dotenv';
 import { SignalKMCPServer } from './signalk-mcp-server.js';
 
-dotenv.config();
+// `quiet: true` suppresses dotenv v17's startup banner so nothing extraneous is
+// written to stdout, which must carry only MCP JSON-RPC frames.
+dotenv.config({ quiet: true });
 
 // Handle unhandled promise rejections gracefully
 process.on('unhandledRejection', (reason, _promise) => {
