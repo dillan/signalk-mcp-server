@@ -20,6 +20,8 @@ import type {
   HistoryContextsResponse,
   CourseStatusResponse,
   AutopilotStatusResponse,
+  WeatherQueryOptions,
+  WeatherResponse,
 } from './types/index.js';
 
 export class SignalKClient extends EventEmitter {
@@ -185,6 +187,27 @@ export class SignalKClient extends EventEmitter {
   buildCourseApiUrl(endpoint: string = ''): string {
     const suffix = endpoint ? `/${endpoint}` : '';
     return `${this.buildHttpUrl()}/signalk/v2/api/vessels/self/navigation/course${suffix}`;
+  }
+
+  /**
+   * Build a SignalK v2 weather API URL with a query string. Undefined / empty
+   * params are dropped (lat/lon are required by the server on every endpoint).
+   * @param endpoint - 'observations', 'forecasts/daily', 'forecasts/point', 'warnings'
+   * @param params - lat, lon (required) plus optional provider / count / date
+   */
+  buildWeatherApiUrl(
+    endpoint: string,
+    params: Record<string, string | number | undefined> = {},
+  ): string {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== '') {
+        query.set(key, String(value));
+      }
+    }
+    const queryString = query.toString();
+    const suffix = queryString ? `?${queryString}` : '';
+    return `${this.buildHttpUrl()}/signalk/v2/api/weather/${endpoint}${suffix}`;
   }
 
   /**
@@ -385,6 +408,71 @@ export class SignalKClient extends EventEmitter {
         error: `Autopilot status request failed: ${error?.message || String(error)}`,
       });
     }
+  }
+
+  /**
+   * Build a degraded weather response (available:false). Used by the
+   * not-implemented stub and by the graceful-degradation paths.
+   */
+  private weatherUnavailable(
+    kind: string,
+    forecastType: string | null,
+    reason?: string,
+    extra: Partial<WeatherResponse> = {},
+  ): WeatherResponse {
+    return {
+      available: false,
+      connected: this.connected,
+      kind,
+      forecastType,
+      position: null,
+      provider: null,
+      data: [],
+      count: 0,
+      timestamp: new Date().toISOString(),
+      ...(reason ? { reason } : {}),
+      ...extra,
+    };
+  }
+
+  /**
+   * Current weather observations for the vessel's position (read-only).
+   * @param options - optional position override / provider / count / date
+   */
+  async getWeatherObservations(
+    options?: WeatherQueryOptions,
+  ): Promise<WeatherResponse> {
+    // STUB - real implementation follows in the next commit.
+    await Promise.resolve();
+    void options;
+    return this.weatherUnavailable('observations', null, 'not implemented');
+  }
+
+  /**
+   * Weather forecast for the vessel's position (read-only). type selects the
+   * 'daily' (per-day) or 'point' (per time-point) forecast.
+   * @param options - type plus optional position / provider / count / date
+   */
+  async getWeatherForecast(
+    options?: WeatherQueryOptions,
+  ): Promise<WeatherResponse> {
+    // STUB - real implementation follows in the next commit.
+    await Promise.resolve();
+    void options;
+    return this.weatherUnavailable('forecast', 'daily', 'not implemented');
+  }
+
+  /**
+   * Active weather warnings for the vessel's position (read-only).
+   * @param options - optional position override / provider
+   */
+  async getWeatherWarnings(
+    options?: WeatherQueryOptions,
+  ): Promise<WeatherResponse> {
+    // STUB - real implementation follows in the next commit.
+    await Promise.resolve();
+    void options;
+    return this.weatherUnavailable('warnings', null, 'not implemented');
   }
 
   /**

@@ -189,3 +189,38 @@ export interface AutopilotStatusResponse {
   timestamp: string;
   error?: string;
 }
+
+export interface WeatherQueryOptions {
+  // Position to query. Defaults to the vessel's current position when omitted.
+  latitude?: number;
+  longitude?: number;
+  // Weather provider plugin id. Defaults to the server's default provider.
+  provider?: string;
+  // Max number of entries to return (observations / forecast only).
+  count?: number;
+  // Start date as YYYY-MM-DD (observations / forecast only).
+  date?: string;
+  // Forecast resolution: 'daily' (per-day) or 'point' (per time point).
+  // Ignored by observations and warnings.
+  type?: 'daily' | 'point';
+}
+
+export interface WeatherResponse {
+  available: boolean;
+  connected: boolean;
+  // 'observations' | 'forecast' | 'warnings'
+  kind: string;
+  // 'daily' | 'point' for forecasts; null for observations / warnings
+  forecastType: string | null;
+  // the position the weather was requested for, or null when there is no fix
+  position: { latitude: number; longitude: number } | null;
+  // the provider id that was requested, or null when the server default was used
+  provider: string | null;
+  // the raw weather entries (WeatherDataModel[] or WeatherWarningModel[]); SI units
+  data: any[];
+  count: number;
+  timestamp: string;
+  // why the data is unavailable, e.g. 'no vessel position'
+  reason?: string;
+  error?: string;
+}

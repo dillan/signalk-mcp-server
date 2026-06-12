@@ -41,6 +41,8 @@ export type {
   HistoryContextsResponse,
   CourseStatusResponse,
   AutopilotStatusResponse,
+  WeatherQueryOptions,
+  WeatherResponse,
 } from './interfaces';
 
 export type {

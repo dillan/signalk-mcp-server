@@ -12,6 +12,8 @@ import type {
   HistoryContextsResponse,
   CourseStatusResponse,
   AutopilotStatusResponse,
+  WeatherQueryOptions,
+  WeatherResponse,
 } from '../types/index.js';
 
 /**
@@ -257,6 +259,65 @@ export class SignalKBinding {
    */
   async getAutopilotStatus(pilotId?: string): Promise<AutopilotStatusResponse> {
     return this.client.getAutopilotStatus(pilotId);
+  }
+
+  /**
+   * Current weather observations for the vessel's position (read-only).
+   *
+   * Requires a SignalK server with a weather provider. lat/lon are required by
+   * the server, so the vessel's position is resolved first; with no position
+   * fix the request is not sent and available:false / reason is returned.
+   * Values are SI (temperatures in kelvin, speeds in m/s, directions in rad).
+   *
+   * @param options - optional position override, provider, count, date
+   * @returns WeatherResponse; available:false when the weather API or a
+   *   position fix is unavailable.
+   *
+   * @example
+   * const w = await signalk.getWeatherObservations();
+   * if (w.available) console.log('air °C:', w.data[0]?.outside?.temperature - 273.15);
+   */
+  async getWeatherObservations(
+    options?: WeatherQueryOptions,
+  ): Promise<WeatherResponse> {
+    return this.client.getWeatherObservations(options);
+  }
+
+  /**
+   * Weather forecast for the vessel's position (read-only).
+   *
+   * type selects the 'daily' (per-day) or 'point' (per time-point) forecast.
+   * Like observations, the vessel position is resolved first and the request is
+   * skipped when there is no fix. Values are SI.
+   *
+   * @param options - type ('daily' | 'point') plus optional position, provider,
+   *   count, date
+   * @returns WeatherResponse; available:false when unavailable.
+   *
+   * @example
+   * const f = await signalk.getWeatherForecast({ type: 'daily', count: 3 });
+   */
+  async getWeatherForecast(
+    options?: WeatherQueryOptions,
+  ): Promise<WeatherResponse> {
+    return this.client.getWeatherForecast(options);
+  }
+
+  /**
+   * Active weather warnings for the vessel's position (read-only).
+   *
+   * @param options - optional position override, provider
+   * @returns WeatherResponse; data is the list of warnings (empty when none).
+   *   available:false when the weather API or a position fix is unavailable.
+   *
+   * @example
+   * const w = await signalk.getWeatherWarnings();
+   * if (w.available && w.count) console.log(w.data.map(x => x.type));
+   */
+  async getWeatherWarnings(
+    options?: WeatherQueryOptions,
+  ): Promise<WeatherResponse> {
+    return this.client.getWeatherWarnings(options);
   }
 
   /**

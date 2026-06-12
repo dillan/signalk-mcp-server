@@ -496,6 +496,109 @@ export class SignalKMCPServer {
         },
       },
       {
+        name: 'get_weather_observations',
+        description:
+          'Get current weather observations for the vessel position (read-only): ' +
+          'air/water temperature, wind, pressure, humidity, waves, current, etc. ' +
+          'Defaults to the vessel position; pass latitude/longitude to query ' +
+          'elsewhere. Returns available:false (reason:"no vessel position") when ' +
+          'there is no position fix, and available:false when there is no weather ' +
+          'provider. Values are SI (kelvin, m/s, radians, pascals).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            latitude: {
+              type: 'number',
+              description: 'Latitude (defaults to the vessel position)',
+            },
+            longitude: {
+              type: 'number',
+              description: 'Longitude (defaults to the vessel position)',
+            },
+            provider: {
+              type: 'string',
+              description: 'Weather provider id (defaults to the server default)',
+            },
+            count: {
+              type: 'number',
+              description: 'Max number of entries to return',
+            },
+            date: {
+              type: 'string',
+              description: 'Start date as YYYY-MM-DD',
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
+        name: 'get_weather_forecast',
+        description:
+          'Get a weather forecast for the vessel position (read-only). type is ' +
+          "'daily' (per-day summary) or 'point' (per time-point series); defaults " +
+          "to 'daily'. Defaults to the vessel position; pass latitude/longitude to " +
+          'query elsewhere. Returns available:false (reason:"no vessel position") ' +
+          'when there is no position fix. Values are SI (kelvin, m/s, radians, pascals).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['daily', 'point'],
+              description: "Forecast resolution: 'daily' or 'point' (default 'daily')",
+            },
+            latitude: {
+              type: 'number',
+              description: 'Latitude (defaults to the vessel position)',
+            },
+            longitude: {
+              type: 'number',
+              description: 'Longitude (defaults to the vessel position)',
+            },
+            provider: {
+              type: 'string',
+              description: 'Weather provider id (defaults to the server default)',
+            },
+            count: {
+              type: 'number',
+              description: 'Max number of entries to return',
+            },
+            date: {
+              type: 'string',
+              description: 'Start date as YYYY-MM-DD',
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
+        name: 'get_weather_warnings',
+        description:
+          'Get active weather warnings for the vessel position (read-only), e.g. ' +
+          'gale or storm advisories. Defaults to the vessel position; pass ' +
+          'latitude/longitude to query elsewhere. Returns available:false ' +
+          '(reason:"no vessel position") when there is no position fix. data is ' +
+          'the list of warnings (empty when none).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            latitude: {
+              type: 'number',
+              description: 'Latitude (defaults to the vessel position)',
+            },
+            longitude: {
+              type: 'number',
+              description: 'Longitude (defaults to the vessel position)',
+            },
+            provider: {
+              type: 'string',
+              description: 'Weather provider id (defaults to the server default)',
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
         name: 'get_connection_status',
         description: 'Get SignalK connection status and health. Useful for debugging and troubleshooting connectivity issues.',
         inputSchema: {
@@ -572,7 +675,8 @@ export class SignalKMCPServer {
             'IMPORTANT: ALL SDK functions are async and MUST be awaited, including getConnectionStatus(). ' +
             'Available functions: await getVesselState(), await getAisTargets(options), ' +
             'await getActiveAlarms(), await listAvailablePaths(), await getPathValue(path), await getConnectionStatus(), ' +
-            'await getHistory({paths, from, to, resolution}), await listHistoryPaths(options), await listHistoryContexts(options), await getCourseStatus(), await getAutopilotStatus(pilotId?). ' +
+            'await getHistory({paths, from, to, resolution}), await listHistoryPaths(options), await listHistoryContexts(options), await getCourseStatus(), await getAutopilotStatus(pilotId?), ' +
+            'await getWeatherObservations(options?), await getWeatherForecast({type}?), await getWeatherWarnings(options?). ' +
             'History needs a SignalK history provider - check result.available; times are ISO-8601 and resolution is in SECONDS. ' +
             'Code MUST: (1) be wrapped in async IIFE, (2) await all SDK calls, (3) return JSON.stringify() of result. ' +
             'Example: (async () => { const vessel = await getVesselState(); return JSON.stringify({ name: vessel.data.name?.value }); })()',
@@ -647,7 +751,7 @@ export class SignalKMCPServer {
               throw new McpError(
                 ErrorCode.MethodNotFound,
                 `Tool ${name} is not available in code-only mode. Use execute_code tool with SignalK SDK functions instead. ` +
-                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus(), getAutopilotStatus()`,
+                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus(), getAutopilotStatus(), getWeatherObservations(), getWeatherForecast(), getWeatherWarnings()`,
               );
           }
         } catch (error: any) {

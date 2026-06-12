@@ -44,9 +44,11 @@ describe('SignalKClient', () => {
     delete process.env.SIGNALK_TOKEN;
     delete process.env.SIGNALK_CONTEXT;
 
-    // Clear mocks
+    // Clear mocks. mockReset (not just mockClear) also drains the
+    // mockResolvedValueOnce queue, so an unconsumed queued response from one
+    // test can never bleed into the next.
     jest.clearAllMocks();
-    mockFetch.mockClear();
+    mockFetch.mockReset();
 
     // Get the mock constructor using dynamic import
     mockSignalKClient = {
@@ -2187,6 +2189,163 @@ describe('SignalKClient', () => {
       mockFetch.mockRejectedValueOnce(new Error('network down'));
       const r = await client.getAutopilotStatus();
       expect(r.available).toBe(false);
+    });
+  });
+
+  describe('Weather Methods', () => {
+    beforeEach(() => {
+      client = new SignalKClient({
+        hostname: 'example.com',
+        port: 3000,
+        useTLS: false,
+      });
+    });
+
+    const ok = (body: any) =>
+      ({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
+    const err = (status: number) =>
+      ({
+        ok: false,
+        status,
+        statusText: 'err',
+        text: () => Promise.resolve(''),
+      } as Response);
+
+    // Scrubbed fixtures (synthetic position + values, no real data).
+    // The vessel-state fetch returns the raw self tree that getVesselState
+    // flattens into data['navigation.position'].value.
+    const selfWithPosition = {
+      navigation: { position: { value: { latitude: 12, longitude: 34 } } },
+    };
+    const selfNoPosition = { navigation: {} };
+    const observations = [
+      {
+        date: '2026-06-12T00:00:00.000Z',
+        type: 'observation',
+        outside: { temperature: 290, pressure: 101000 },
+        wind: { speedTrue: 5, directionTrue: 1.2 },
+      },
+    ];
+    const warnings = [
+      {
+        startTime: '2026-06-12T00:00:00.000Z',
+        endTime: '2026-06-12T06:00:00.000Z',
+        type: 'Gale Warning',
+        details: 'test advisory',
+      },
+    ];
+
+    test('explicit position: requests /observations with lat/lon, parses data', async () => {
+      mockFetch.mockResolvedValueOnce(ok(observations));
+      const w = await client.getWeatherObservations({
+        latitude: 12,
+        longitude: 34,
+      });
+      expect(w.available).toBe(true);
+      expect(w.kind).toBe('observations');
+      expect(w.count).toBe(1);
+      expect(w.data).toEqual(observations);
+      expect(w.position).toEqual({ latitude: 12, longitude: 34 });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+      expect(url).toContain('/signalk/v2/api/weather/observations');
+      expect(url).toContain('lat=12');
+      expect(url).toContain('lon=34');
+    });
+
+    test('resolves the vessel position first, then requests weather', async () => {
+      mockFetch.mockResolvedValueOnce(ok(selfWithPosition));
+      mockFetch.mockResolvedValueOnce(ok(observations));
+      const w = await client.getWeatherObservations();
+      expect(w.available).toBe(true);
+      expect(w.position).toEqual({ latitude: 12, longitude: 34 });
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch.mock.calls[0][0] as string).toContain(
+        '/signalk/v1/api/vessels/self',
+      );
+      expect(decodeURIComponent(mockFetch.mock.calls[1][0] as string)).toContain(
+        '/weather/observations',
+      );
+    });
+
+    test('no vessel position => available:false, reason, weather never fetched', async () => {
+      mockFetch.mockResolvedValueOnce(ok(selfNoPosition));
+      const w = await client.getWeatherObservations();
+      expect(w.available).toBe(false);
+      expect(w.reason).toMatch(/position/i);
+      expect(w.data).toEqual([]);
+      // Only the vessel-state probe fired; the weather request never did.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('provider and count are passed through to the query', async () => {
+      mockFetch.mockResolvedValueOnce(ok(observations));
+      await client.getWeatherObservations({
+        latitude: 12,
+        longitude: 34,
+        provider: 'open-meteo',
+        count: 3,
+      });
+      const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+      expect(url).toContain('provider=open-meteo');
+      expect(url).toContain('count=3');
+    });
+
+    test('weather API unavailable (404) => available:false', async () => {
+      mockFetch.mockResolvedValueOnce(err(404));
+      const w = await client.getWeatherObservations({
+        latitude: 12,
+        longitude: 34,
+      });
+      expect(w.available).toBe(false);
+    });
+
+    test('forecast defaults to the daily endpoint', async () => {
+      mockFetch.mockResolvedValueOnce(ok(observations));
+      const w = await client.getWeatherForecast({ latitude: 12, longitude: 34 });
+      expect(w.available).toBe(true);
+      expect(w.kind).toBe('forecast');
+      expect(w.forecastType).toBe('daily');
+      expect(decodeURIComponent(mockFetch.mock.calls[0][0] as string)).toContain(
+        '/weather/forecasts/daily',
+      );
+    });
+
+    test("forecast type 'point' hits the point endpoint", async () => {
+      mockFetch.mockResolvedValueOnce(ok(observations));
+      const w = await client.getWeatherForecast({
+        latitude: 12,
+        longitude: 34,
+        type: 'point',
+      });
+      expect(w.forecastType).toBe('point');
+      expect(decodeURIComponent(mockFetch.mock.calls[0][0] as string)).toContain(
+        '/weather/forecasts/point',
+      );
+    });
+
+    test('warnings: requests /warnings and returns the list', async () => {
+      mockFetch.mockResolvedValueOnce(ok(warnings));
+      const w = await client.getWeatherWarnings({
+        latitude: 12,
+        longitude: 34,
+      });
+      expect(w.available).toBe(true);
+      expect(w.kind).toBe('warnings');
+      expect(w.count).toBe(1);
+      expect(w.data).toEqual(warnings);
+      expect(decodeURIComponent(mockFetch.mock.calls[0][0] as string)).toContain(
+        '/weather/warnings',
+      );
+    });
+
+    test('network error => available:false, no throw', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('network down'));
+      const w = await client.getWeatherWarnings({
+        latitude: 12,
+        longitude: 34,
+      });
+      expect(w.available).toBe(false);
     });
   });
 
