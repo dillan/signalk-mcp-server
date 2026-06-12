@@ -728,6 +728,46 @@ export class SignalKMCPServer {
                 return await this.listAvailablePaths();
               case 'get_path_value':
                 return await this.getPathValue(args?.path);
+              case 'get_history':
+                return this.wrapToolResult(
+                  await this.signalkClient.getHistory(args),
+                  'getHistory()',
+                );
+              case 'list_history_paths':
+                return this.wrapToolResult(
+                  await this.signalkClient.listHistoryPaths(args),
+                  'listHistoryPaths()',
+                );
+              case 'list_history_contexts':
+                return this.wrapToolResult(
+                  await this.signalkClient.listHistoryContexts(args),
+                  'listHistoryContexts()',
+                );
+              case 'get_course_status':
+                return this.wrapToolResult(
+                  await this.signalkClient.getCourseStatus(),
+                  'getCourseStatus()',
+                );
+              case 'get_autopilot_status':
+                return this.wrapToolResult(
+                  await this.signalkClient.getAutopilotStatus(args?.pilotId),
+                  'getAutopilotStatus()',
+                );
+              case 'get_weather_observations':
+                return this.wrapToolResult(
+                  await this.signalkClient.getWeatherObservations(args),
+                  'getWeatherObservations()',
+                );
+              case 'get_weather_forecast':
+                return this.wrapToolResult(
+                  await this.signalkClient.getWeatherForecast(args),
+                  'getWeatherForecast()',
+                );
+              case 'get_weather_warnings':
+                return this.wrapToolResult(
+                  await this.signalkClient.getWeatherWarnings(args),
+                  'getWeatherWarnings()',
+                );
               case 'get_connection_status':
                 return this.getConnectionStatus();
               case 'get_initial_context':
@@ -917,6 +957,32 @@ export class SignalKMCPServer {
         `Code execution failed: ${error.message}`,
       );
     }
+  }
+
+  /**
+   * Wrap a client result as an MCP text response, mirroring the legacy tool
+   * handlers. Used by the v2 read tools (history, course, autopilot, weather)
+   * so they are directly callable in tools/hybrid mode, not just advertised.
+   *
+   * @param data - the value returned by the SignalK client method
+   * @param sdkHint - the execute_code SDK call to suggest in hybrid mode
+   * @returns MCPToolResponse with the data as formatted JSON text
+   */
+  private wrapToolResult(data: unknown, sdkHint: string): MCPToolResponse {
+    const deprecationNotice =
+      this.executionMode === 'hybrid'
+        ? '\n⚠️ DEPRECATION WARNING: This tool will be removed in a future version. ' +
+          `Use execute_code with ${sdkHint} instead.\n`
+        : '';
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: deprecationNotice + JSON.stringify(data, null, 2),
+        },
+      ],
+    };
   }
 
   /**
