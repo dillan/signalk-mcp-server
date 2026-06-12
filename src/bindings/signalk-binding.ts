@@ -6,6 +6,10 @@ import type {
   AvailablePathsResponse,
   PathValueResponse,
   ConnectionStatus,
+  HistoryQueryOptions,
+  HistoryResponse,
+  HistoryPathsResponse,
+  HistoryContextsResponse,
 } from '../types/index.js';
 
 /**
@@ -173,6 +177,53 @@ export class SignalKBinding {
   async getPathValue(pathOrOptions: string | { path: string }): Promise<PathValueResponse> {
     const path = typeof pathOrOptions === 'string' ? pathOrOptions : pathOrOptions.path;
     return this.client.getPathValue(path);
+  }
+
+  /**
+   * Query historical time-series for one or more SignalK paths.
+   *
+   * Requires a SignalK server with a history provider (e.g. signalk-to-influxdb).
+   * Returns per-path arrays of { timestamp, value }. All times are ISO-8601 and
+   * `resolution` is in SECONDS. navigation.position values are [lon, lat] arrays.
+   * Check `available` - it is false when no history provider is installed.
+   *
+   * @example
+   * // In agent code
+   * const h = await signalk.getHistory({
+   *   paths: 'navigation.speedOverGround:max',
+   *   from: '2026-06-11T06:00:00Z', to: '2026-06-11T12:00:00Z', resolution: 300
+   * });
+   * if (h.available) {
+   *   const sog = h.values['navigation.speedOverGround'].filter(p => p.value != null);
+   * }
+   */
+  async getHistory(options: HistoryQueryOptions): Promise<HistoryResponse> {
+    return this.client.getHistory(options);
+  }
+
+  /**
+   * List SignalK paths that have historical data in a time window.
+   * @returns HistoryPathsResponse; available:false means no history provider
+   */
+  async listHistoryPaths(options?: {
+    from?: string;
+    to?: string;
+    duration?: string | number;
+    context?: string;
+  }): Promise<HistoryPathsResponse> {
+    return this.client.listHistoryPaths(options);
+  }
+
+  /**
+   * List vessel contexts that have historical data in a time window.
+   * @returns HistoryContextsResponse; available:false means no history provider
+   */
+  async listHistoryContexts(options?: {
+    from?: string;
+    to?: string;
+    duration?: string | number;
+  }): Promise<HistoryContextsResponse> {
+    return this.client.listHistoryContexts(options);
   }
 
   /**

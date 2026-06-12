@@ -474,6 +474,9 @@ describe('Tool Migration Tests', () => {
             'execute_code',
             'get_initial_context',
             'get_connection_status',
+            'get_history',
+            'list_history_paths',
+            'list_history_contexts',
           ].includes(t.name)
       );
 

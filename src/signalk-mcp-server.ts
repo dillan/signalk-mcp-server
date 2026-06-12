@@ -374,6 +374,94 @@ export class SignalKMCPServer {
         },
       },
       {
+        name: 'get_history',
+        description:
+          'Query aggregated historical time-series for one or more SignalK paths. ' +
+          'Requires a SignalK server with a history provider (e.g. signalk-to-influxdb); ' +
+          'if none is installed the result has available:false. ' +
+          'Times are ISO-8601 (e.g. 2026-06-11T06:00:00Z); resolution is in SECONDS; ' +
+          'provide "from" or "duration". Aggregation can be set inline per path ' +
+          '(e.g. "navigation.speedOverGround:max"). Returns a per-path map of ' +
+          '{timestamp, value} points; navigation.position values are [longitude, latitude] ' +
+          'arrays (NOT {latitude, longitude}), and null marks a gap. Best used inside ' +
+          'execute_code so you can aggregate before returning.\n\n' +
+          'Example:\n' +
+          '```javascript\n' +
+          '(async () => {\n' +
+          "  const h = await getHistory({ paths: 'navigation.speedOverGround:max', from: '2026-06-11T06:00:00Z', to: '2026-06-11T12:00:00Z', resolution: 300 });\n" +
+          '  if (!h.available) return JSON.stringify({ note: h.error });\n' +
+          "  const pts = h.values['navigation.speedOverGround'].filter(p => p.value != null);\n" +
+          '  return JSON.stringify({ maxKn: (Math.max(...pts.map(p => p.value)) * 1.94384).toFixed(1) });\n' +
+          '})();\n' +
+          '```',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            paths: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'SignalK path(s), optionally with an inline aggregation method (path:method[:param]), ' +
+                'e.g. ["navigation.speedOverGround:sma:5", "navigation.position"]',
+            },
+            from: {
+              type: 'string',
+              description: 'ISO-8601 start time (provide "from" or "duration")',
+            },
+            to: { type: 'string', description: 'ISO-8601 end time (defaults to now)' },
+            duration: {
+              type: 'string',
+              description: 'ISO-8601 duration (PT1H) or seconds; use instead of "from"',
+            },
+            resolution: {
+              type: 'number',
+              description: 'Bucket size in SECONDS (e.g. 60 = 1-minute buckets)',
+            },
+            aggregate: {
+              type: 'string',
+              description:
+                'Default aggregation for bare paths: average|min|max|first|last (default average)',
+            },
+            context: { type: 'string', description: 'Vessel context (default vessels.self)' },
+          },
+          required: ['paths'],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: 'list_history_paths',
+        description:
+          'List SignalK paths that have historical data in a time window. ' +
+          'Returns available:false when no history provider is installed. ' +
+          'Defaults to the last 24 hours when no time window is given.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            from: { type: 'string', description: 'ISO-8601 start time' },
+            to: { type: 'string', description: 'ISO-8601 end time' },
+            duration: { type: 'string', description: 'ISO-8601 duration (P1D) or seconds' },
+            context: { type: 'string', description: 'Vessel context filter' },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
+        name: 'list_history_contexts',
+        description:
+          'List vessel contexts that have historical data in a time window. ' +
+          'Returns available:false when no history provider is installed. ' +
+          'Useful to discover which vessels have history before calling get_history.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            from: { type: 'string', description: 'ISO-8601 start time' },
+            to: { type: 'string', description: 'ISO-8601 end time' },
+            duration: { type: 'string', description: 'ISO-8601 duration (P1D) or seconds' },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
         name: 'get_connection_status',
         description: 'Get SignalK connection status and health. Useful for debugging and troubleshooting connectivity issues.',
         inputSchema: {
@@ -449,7 +537,9 @@ export class SignalKMCPServer {
             'Execute JavaScript code in a secure V8 isolate with access to SignalK SDK functions. ' +
             'IMPORTANT: ALL SDK functions are async and MUST be awaited, including getConnectionStatus(). ' +
             'Available functions: await getVesselState(), await getAisTargets(options), ' +
-            'await getActiveAlarms(), await listAvailablePaths(), await getPathValue(path), await getConnectionStatus(). ' +
+            'await getActiveAlarms(), await listAvailablePaths(), await getPathValue(path), await getConnectionStatus(), ' +
+            'await getHistory({paths, from, to, resolution}), await listHistoryPaths(options), await listHistoryContexts(options). ' +
+            'History needs a SignalK history provider - check result.available; times are ISO-8601 and resolution is in SECONDS. ' +
             'Code MUST: (1) be wrapped in async IIFE, (2) await all SDK calls, (3) return JSON.stringify() of result. ' +
             'Example: (async () => { const vessel = await getVesselState(); return JSON.stringify({ name: vessel.data.name?.value }); })()',
           inputSchema: {
@@ -523,7 +613,7 @@ export class SignalKMCPServer {
               throw new McpError(
                 ErrorCode.MethodNotFound,
                 `Tool ${name} is not available in code-only mode. Use execute_code tool with SignalK SDK functions instead. ` +
-                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue()`,
+                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts()`,
               );
           }
         } catch (error: any) {
