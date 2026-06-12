@@ -2390,6 +2390,78 @@ describe('SignalKClient', () => {
     });
   });
 
+  describe('Server Discovery Methods', () => {
+    beforeEach(() => {
+      client = new SignalKClient({
+        hostname: 'example.com',
+        port: 3000,
+        useTLS: false,
+      });
+    });
+
+    const ok = (body: any) =>
+      ({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
+    const err = (status: number) =>
+      ({
+        ok: false,
+        status,
+        statusText: 'err',
+        text: () => Promise.resolve(''),
+      } as Response);
+
+    // Scrubbed fixtures (shape captured from a live server, no real data).
+    const serverRoot = {
+      server: { id: 'signalk-server-node', version: '0.0.0' },
+      endpoints: { v1: { version: '1.0.0' } },
+    };
+    const featuresBody = {
+      apis: ['course', 'autopilot', 'weather', 'history'],
+      plugins: [{ id: 'example-plugin', name: 'Example', version: '1.0.0' }],
+    };
+
+    test('getServerInfo reads /signalk and parses id/version', async () => {
+      mockFetch.mockResolvedValueOnce(ok(serverRoot));
+      const r = await client.getServerInfo();
+      expect(r.available).toBe(true);
+      expect(r.name).toBe('signalk-server-node');
+      expect(r.version).toBe('0.0.0');
+      expect(r.endpoints).toEqual(serverRoot.endpoints);
+      expect(mockFetch.mock.calls[0][0] as string).toContain('/signalk');
+    });
+
+    test('getServerInfo 404 => available:false, never throws', async () => {
+      mockFetch.mockResolvedValueOnce(err(404));
+      const r = await client.getServerInfo();
+      expect(r.available).toBe(false);
+      expect(r.name).toBeNull();
+    });
+
+    test('getServerInfo network error => available:false', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('network down'));
+      const r = await client.getServerInfo();
+      expect(r.available).toBe(false);
+    });
+
+    test('getServerFeatures reads /signalk/v2/features and parses apis/plugins', async () => {
+      mockFetch.mockResolvedValueOnce(ok(featuresBody));
+      const r = await client.getServerFeatures();
+      expect(r.available).toBe(true);
+      expect(r.apis).toEqual(featuresBody.apis);
+      expect(r.plugins).toEqual(featuresBody.plugins);
+      expect(mockFetch.mock.calls[0][0] as string).toContain(
+        '/signalk/v2/features',
+      );
+    });
+
+    test('getServerFeatures 404 => available:false with empty lists', async () => {
+      mockFetch.mockResolvedValueOnce(err(404));
+      const r = await client.getServerFeatures();
+      expect(r.available).toBe(false);
+      expect(r.apis).toEqual([]);
+      expect(r.plugins).toEqual([]);
+    });
+  });
+
   describe('History Methods', () => {
     beforeEach(() => {
       client = new SignalKClient({

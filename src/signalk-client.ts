@@ -22,6 +22,8 @@ import type {
   AutopilotStatusResponse,
   WeatherQueryOptions,
   WeatherResponse,
+  ServerInfoResponse,
+  ServerFeaturesResponse,
 } from './types/index.js';
 
 export class SignalKClient extends EventEmitter {
@@ -573,6 +575,39 @@ export class SignalKClient extends EventEmitter {
     options?: WeatherQueryOptions,
   ): Promise<WeatherResponse> {
     return this.fetchWeather('warnings', 'warnings', null, options, false);
+  }
+
+  /**
+   * Server identity and available endpoints (GET /signalk). Read-only; needs no
+   * vessel position. Never throws.
+   */
+  async getServerInfo(): Promise<ServerInfoResponse> {
+    // STUB - real implementation follows in the next commit.
+    await Promise.resolve();
+    return {
+      available: false,
+      connected: this.connected,
+      name: null,
+      version: null,
+      endpoints: null,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * The APIs and plugins the server has enabled (GET /signalk/v2/features).
+   * Read-only; needs no vessel position. Never throws.
+   */
+  async getServerFeatures(): Promise<ServerFeaturesResponse> {
+    // STUB - real implementation follows in the next commit.
+    await Promise.resolve();
+    return {
+      available: false,
+      connected: this.connected,
+      apis: [],
+      plugins: [],
+      timestamp: new Date().toISOString(),
+    };
   }
 
   /**

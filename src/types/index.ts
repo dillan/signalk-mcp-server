@@ -43,6 +43,8 @@ export type {
   AutopilotStatusResponse,
   WeatherQueryOptions,
   WeatherResponse,
+  ServerInfoResponse,
+  ServerFeaturesResponse,
 } from './interfaces';
 
 export type {

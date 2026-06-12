@@ -224,3 +224,26 @@ export interface WeatherResponse {
   reason?: string;
   error?: string;
 }
+
+export interface ServerInfoResponse {
+  available: boolean;
+  connected: boolean;
+  // the SignalK server implementation id and version, or null when unavailable
+  name: string | null;
+  version: string | null;
+  // the raw endpoints block from GET /signalk (versions -> urls)
+  endpoints: any;
+  timestamp: string;
+  error?: string;
+}
+
+export interface ServerFeaturesResponse {
+  available: boolean;
+  connected: boolean;
+  // names of the APIs the server implements (e.g. 'course', 'weather', 'history')
+  apis: string[];
+  // installed plugins ({ id, name, version })
+  plugins: any[];
+  timestamp: string;
+  error?: string;
+}

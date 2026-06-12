@@ -60,6 +60,8 @@ jest.mock('./signalk-client', () => ({
     getWeatherObservations: jest.fn(),
     getWeatherForecast: jest.fn(),
     getWeatherWarnings: jest.fn(),
+    getServerInfo: jest.fn(),
+    getServerFeatures: jest.fn(),
     getConnectionStatus: jest.fn(),
     disconnect: jest.fn(),
     buildWebSocketUrl: jest.fn(),
@@ -128,6 +130,8 @@ describe('SignalKMCPServer', () => {
       getWeatherObservations: jest.fn(),
       getWeatherForecast: jest.fn(),
       getWeatherWarnings: jest.fn(),
+    getServerInfo: jest.fn(),
+    getServerFeatures: jest.fn(),
       getConnectionStatus: jest.fn(),
       disconnect: jest.fn(),
       buildWebSocketUrl: jest.fn(),
@@ -701,8 +705,8 @@ describe('SignalKMCPServer', () => {
       expect(JSON.parse(result.content[0].text)).toEqual(mockData);
     });
 
-    test('getInitialContext should return formatted response', () => {
-      const result = server.getInitialContext();
+    test('getInitialContext should return formatted response', async () => {
+      const result = await server.getInitialContext();
 
       expect(result.content[0].type).toBe('text');
       const parsedResult = JSON.parse(result.content[0].text);
@@ -711,6 +715,41 @@ describe('SignalKMCPServer', () => {
       expect(parsedResult.server_info).toHaveProperty('version');
       expect(parsedResult.server_info).toHaveProperty('loaded_at');
       expect(parsedResult.server_info).toHaveProperty('description');
+    });
+
+    test('getInitialContext folds in live server features and memoizes discovery', async () => {
+      (mockSignalKClient as any).getServerInfo.mockResolvedValue({
+        available: true,
+        connected: true,
+        name: 'signalk-server-node',
+        version: '0.0.0',
+        endpoints: {},
+        timestamp: 't',
+      });
+      (mockSignalKClient as any).getServerFeatures.mockResolvedValue({
+        available: true,
+        connected: true,
+        apis: ['weather', 'history'],
+        plugins: [],
+        timestamp: 't',
+      });
+
+      const first = await server.getInitialContext();
+      const second = await server.getInitialContext();
+
+      const parsed = JSON.parse(first.content[0].text);
+      expect(parsed).toHaveProperty('server_features');
+      expect(parsed.server_features.apis).toEqual(['weather', 'history']);
+      expect(parsed.server_info.signalk_server).toEqual({
+        id: 'signalk-server-node',
+        version: '0.0.0',
+      });
+      // Memoized: discovery runs once across both calls.
+      expect((mockSignalKClient as any).getServerInfo).toHaveBeenCalledTimes(1);
+      expect(
+        (mockSignalKClient as any).getServerFeatures,
+      ).toHaveBeenCalledTimes(1);
+      expect(second.content[0].text).toBe(first.content[0].text);
     });
   });
 
