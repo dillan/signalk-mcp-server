@@ -83,7 +83,8 @@ export class IsolateSandbox {
   /**
    * Whether the optional isolated-vm native addon can be loaded in this runtime.
    * Lets the server decide up front whether code execution will work (and fall
-   * back to the direct read tools when it won't). The result is cached.
+   * back to the direct read tools when it won't). The module load is cached by
+   * loadIvm, so repeat calls are cheap once it has succeeded.
    */
   async isAvailable(): Promise<boolean> {
     try {

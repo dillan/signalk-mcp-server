@@ -363,6 +363,31 @@ describe('SignalKMCPServer', () => {
       expect(names).toContain('execute_code');
       expect(names).not.toContain('get_vessel_state');
     });
+
+    test('hybrid mode degraded: advertises the direct tools and drops execute_code', async () => {
+      const server = new SignalKMCPServer({
+        executionMode: 'hybrid',
+        sandbox: unavailableSandbox(),
+      });
+      await server.run();
+      const listToolsHandler = mockServer.setRequestHandler.mock
+        .calls[0][1] as () => any;
+      const names = listToolsHandler().tools.map((t: any) => t.name);
+      expect(names).toContain('get_vessel_state');
+      expect(names).not.toContain('execute_code');
+    });
+
+    test('normal code mode (addon available) rejects a direct read tool', async () => {
+      const server = new SignalKMCPServer({ executionMode: 'code' });
+      await server.run(); // addon available -> not degraded
+      const callToolHandler = mockServer.setRequestHandler.mock
+        .calls[1][1] as (request: any) => Promise<any>;
+      await expect(
+        callToolHandler({
+          params: { name: 'get_vessel_state', arguments: {} },
+        }),
+      ).rejects.toThrow(/code-only mode/);
+    });
   });
 
   describe('Tool execution', () => {
