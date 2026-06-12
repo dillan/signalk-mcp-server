@@ -143,6 +143,34 @@ export class SignalKClient extends EventEmitter {
   }
 
   /**
+   * Build a SignalK v2 History API URL.
+   *
+   * The History API lives at /signalk/v2/api/history/<endpoint> - a different
+   * base path from buildRestApiUrl (/signalk/v1/api/vessels/...). Query values
+   * that are undefined or empty are dropped. Reserved characters in the path
+   * expression (':' and ',') are percent-encoded by URLSearchParams and decoded
+   * by the server before it splits them.
+   *
+   * @param endpoint - 'values', 'contexts', or 'paths'
+   * @param params - query parameters; undefined/empty values are omitted
+   * @returns Complete History API URL
+   */
+  buildHistoryApiUrl(
+    endpoint: 'values' | 'contexts' | 'paths',
+    params: Record<string, string | number | undefined> = {},
+  ): string {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== '') {
+        query.set(key, String(value));
+      }
+    }
+    const queryString = query.toString();
+    const suffix = queryString ? `?${queryString}` : '';
+    return `${this.buildHttpUrl()}/signalk/v2/api/history/${endpoint}${suffix}`;
+  }
+
+  /**
    * Build fetch options with authentication headers if token is configured
    * @returns RequestInit object with authorization header if token exists
    */

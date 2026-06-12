@@ -33,6 +33,12 @@ export type {
   AvailablePathsResponse,
   PathValueResponse,
   ConnectionStatus,
+  HistoryDataPoint,
+  HistoryQueryOptions,
+  HistorySeries,
+  HistoryResponse,
+  HistoryPathsResponse,
+  HistoryContextsResponse,
 } from './interfaces';
 
 export type {
