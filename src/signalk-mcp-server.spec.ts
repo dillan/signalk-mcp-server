@@ -52,6 +52,14 @@ jest.mock('./signalk-client', () => ({
     getActiveAlarms: jest.fn(),
     listAvailablePaths: jest.fn(),
     getPathValue: jest.fn(),
+    getHistory: jest.fn(),
+    listHistoryPaths: jest.fn(),
+    listHistoryContexts: jest.fn(),
+    getCourseStatus: jest.fn(),
+    getAutopilotStatus: jest.fn(),
+    getWeatherObservations: jest.fn(),
+    getWeatherForecast: jest.fn(),
+    getWeatherWarnings: jest.fn(),
     getConnectionStatus: jest.fn(),
     disconnect: jest.fn(),
     buildWebSocketUrl: jest.fn(),
@@ -112,6 +120,14 @@ describe('SignalKMCPServer', () => {
       getActiveAlarms: jest.fn(),
       listAvailablePaths: jest.fn(),
       getPathValue: jest.fn(),
+      getHistory: jest.fn(),
+      listHistoryPaths: jest.fn(),
+      listHistoryContexts: jest.fn(),
+      getCourseStatus: jest.fn(),
+      getAutopilotStatus: jest.fn(),
+      getWeatherObservations: jest.fn(),
+      getWeatherForecast: jest.fn(),
+      getWeatherWarnings: jest.fn(),
       getConnectionStatus: jest.fn(),
       disconnect: jest.fn(),
       buildWebSocketUrl: jest.fn(),
@@ -510,6 +526,72 @@ describe('SignalKMCPServer', () => {
       await expect(callToolHandler(request)).rejects.toThrow(
         'Tool execution failed: Tool execution failed',
       );
+    });
+
+    // The v2 read tools (history, course, autopilot, weather) must be directly
+    // callable in tools/hybrid mode - not just advertised in the tools list.
+    // Each dispatches to the matching client method and wraps the result.
+    describe('v2 read tools dispatch in tools mode', () => {
+      const cases: Array<{
+        tool: string;
+        method: string;
+        args: any;
+        expectArgs?: any[];
+      }> = [
+        {
+          tool: 'get_history',
+          method: 'getHistory',
+          args: {
+            paths: 'navigation.position',
+            from: '2026-06-12T00:00:00Z',
+            to: '2026-06-12T01:00:00Z',
+          },
+        },
+        { tool: 'list_history_paths', method: 'listHistoryPaths', args: {} },
+        {
+          tool: 'list_history_contexts',
+          method: 'listHistoryContexts',
+          args: {},
+        },
+        { tool: 'get_course_status', method: 'getCourseStatus', args: {} },
+        {
+          tool: 'get_autopilot_status',
+          method: 'getAutopilotStatus',
+          args: { pilotId: 'pilot-a' },
+          expectArgs: ['pilot-a'],
+        },
+        {
+          tool: 'get_weather_observations',
+          method: 'getWeatherObservations',
+          args: { latitude: 38.97, longitude: -76.5 },
+        },
+        {
+          tool: 'get_weather_forecast',
+          method: 'getWeatherForecast',
+          args: { type: 'daily' },
+        },
+        { tool: 'get_weather_warnings', method: 'getWeatherWarnings', args: {} },
+      ];
+
+      cases.forEach(({ tool, method, args, expectArgs }) => {
+        test(`dispatches ${tool} to client.${method}`, async () => {
+          const mockData = { ok: true, tool };
+          (mockSignalKClient as any)[method].mockResolvedValue(mockData);
+
+          const result = await callToolHandler({
+            params: { name: tool, arguments: args },
+          });
+
+          expect((mockSignalKClient as any)[method]).toHaveBeenCalledTimes(1);
+          if (expectArgs) {
+            expect((mockSignalKClient as any)[method]).toHaveBeenCalledWith(
+              ...expectArgs,
+            );
+          }
+          expect(result.content[0].type).toBe('text');
+          expect(JSON.parse(result.content[0].text)).toEqual(mockData);
+        });
+      });
     });
   });
 
