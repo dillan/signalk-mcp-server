@@ -194,14 +194,72 @@ export class SignalKClient extends EventEmitter {
    * calcValues:null when not navigating. Never throws.
    */
   async getCourseStatus(): Promise<CourseStatusResponse> {
-    // STUB - real implementation follows in the next commit.
+    const now = () => new Date().toISOString();
+    let course: any = null;
+
+    // 1) Read the course root - the source of truth for whether a destination
+    //    is set. It returns 200 with null fields when not navigating.
+    try {
+      const response = await this.fetchJson(this.buildCourseApiUrl());
+      if (!response.ok) {
+        const s = response.status;
+        const error =
+          s === 404 || s === 501
+            ? `Course API not available on this SignalK server (HTTP ${s})`
+            : s === 401 || s === 403
+              ? `Course API requires authentication - set SIGNALK_TOKEN (HTTP ${s})`
+              : `Course request failed (HTTP ${s})`;
+        return {
+          available: false,
+          connected: this.connected,
+          navigating: false,
+          course: null,
+          calcValues: null,
+          timestamp: now(),
+          error,
+        };
+      }
+      course = await response.json();
+    } catch (error: any) {
+      console.error('Failed to fetch course status via HTTP:', error.message);
+      return {
+        available: false,
+        connected: this.connected,
+        navigating: false,
+        course: null,
+        calcValues: null,
+        timestamp: now(),
+        error: `Course request failed: ${error?.message || String(error)}`,
+      };
+    }
+
+    const navigating = !!(course && (course.activeRoute || course.nextPoint));
+
+    // 2) Only fetch calc values when navigating; /calcValues returns HTTP 400
+    //    ("No active destination!") otherwise, which is a normal state, not an
+    //    error - so we never even ask for it when there is no destination.
+    let calcValues: any = null;
+    if (navigating) {
+      try {
+        const response = await this.fetchJson(
+          this.buildCourseApiUrl('calcValues'),
+        );
+        if (response.ok) {
+          calcValues = await response.json();
+        }
+        // A non-ok response (e.g. a 400 race) just leaves calcValues null.
+      } catch {
+        // Leave calcValues null; the course root already answered the question.
+      }
+    }
+
     return {
-      available: false,
+      available: true,
       connected: this.connected,
-      navigating: false,
-      course: null,
-      calcValues: null,
-      timestamp: new Date().toISOString(),
+      navigating,
+      course,
+      calcValues,
+      timestamp: now(),
     };
   }
 

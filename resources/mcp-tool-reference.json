@@ -92,6 +92,12 @@
         "description": "List vessel contexts that have historical data. Call before get_history to discover which vessels have history.",
         "returns": "{ available, count, contexts: string[] }",
         "example": "const h = await listHistoryContexts();\nif (h.available) console.log(h.contexts);"
+      },
+      "getCourseStatus": {
+        "signature": "await getCourseStatus()",
+        "description": "Current navigation course: active route/destination plus calculated values (cross-track error, bearing, ETA, VMG, time-to-go). Values are SI (distance in metres, bearings in radians).",
+        "returns": "{ available, navigating, course, calcValues }. navigating is false (and calcValues null) when no destination is set. available:false means the course API is unavailable.",
+        "example": "(async () => {\n  const c = await getCourseStatus();\n  if (!c.available) return JSON.stringify({ note: c.error });\n  if (!c.navigating) return JSON.stringify({ navigating: false });\n  return JSON.stringify({ distanceNm: (c.calcValues.distance / 1852).toFixed(2), bearingDeg: (c.calcValues.bearingTrue * 57.2958).toFixed(0) });\n})()"
       }
     }
   },
