@@ -191,6 +191,49 @@ export class SignalKClient extends EventEmitter {
   }
 
   /**
+   * fetch() wrapped with an AbortController timeout and one bounded retry, so a
+   * hung or flaky SignalK server fails fast and legibly instead of stalling a
+   * tool call. Auth headers (buildFetchOptions) are applied automatically.
+   * Returns the Response; callers handle response.ok / .json() as before.
+   */
+  private async fetchJson(
+    url: string,
+    init: RequestInit = {},
+    opts: { timeoutMs?: number; retries?: number } = {},
+  ): Promise<Response> {
+    const timeoutMs = opts.timeoutMs ?? 10000;
+    const retries = opts.retries ?? 1;
+    const base = this.buildFetchOptions();
+
+    let lastError: any;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, {
+          ...base,
+          ...init,
+          headers: { ...(base.headers as any), ...(init.headers as any) },
+          signal: controller.signal,
+        });
+      } catch (error: any) {
+        const aborted = error?.name === 'AbortError';
+        lastError = aborted
+          ? new Error(`Request timed out after ${timeoutMs}ms`)
+          : error;
+        // Retry once on a timeout only; a hard network/parse error fails fast.
+        if (!aborted || attempt >= retries) {
+          throw lastError;
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    // Unreachable (the loop either returns or throws), satisfies the type checker.
+    throw lastError;
+  }
+
+  /**
    * Sets up WebSocket event handlers for connection, disconnection, errors, and delta messages
    *
    * Event handlers:
@@ -254,7 +297,7 @@ export class SignalKClient extends EventEmitter {
     // Test HTTP connectivity
     try {
       const apiUrl = this.buildRestApiUrl('self');
-      const response = await fetch(apiUrl, this.buildFetchOptions());
+      const response = await this.fetchJson(apiUrl);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -320,7 +363,7 @@ export class SignalKClient extends EventEmitter {
   private async fetchInitialVesselState(): Promise<void> {
     try {
       const apiUrl = this.buildRestApiUrl('self');
-      const response = await fetch(apiUrl, this.buildFetchOptions());
+      const response = await this.fetchJson(apiUrl);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -626,7 +669,7 @@ export class SignalKClient extends EventEmitter {
   async getVesselState(): Promise<VesselState> {
     try {
       const apiUrl = this.buildRestApiUrl('self');
-      const response = await fetch(apiUrl, this.buildFetchOptions());
+      const response = await this.fetchJson(apiUrl);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -839,7 +882,7 @@ export class SignalKClient extends EventEmitter {
 
       // Fetch all vessels from the API
       const apiUrl = `${this.buildHttpUrl()}/signalk/v1/api/vessels`;
-      const response = await fetch(apiUrl, this.buildFetchOptions());
+      const response = await this.fetchJson(apiUrl);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1034,7 +1077,7 @@ export class SignalKClient extends EventEmitter {
   async getActiveAlarms(): Promise<ActiveAlarmsResponse> {
     try {
       const apiUrl = this.buildRestApiUrl('self');
-      const response = await fetch(apiUrl, this.buildFetchOptions());
+      const response = await this.fetchJson(apiUrl);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1133,7 +1176,7 @@ export class SignalKClient extends EventEmitter {
       // Use helper method to build REST API URL
       const apiUrl = this.buildRestApiUrl('self');
 
-      const response = await fetch(apiUrl, this.buildFetchOptions());
+      const response = await this.fetchJson(apiUrl);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -1236,7 +1279,7 @@ export class SignalKClient extends EventEmitter {
       // Use helper method to build REST API URL for the specific path
       const apiUrl = this.buildRestApiUrl('self', path);
 
-      const response = await fetch(apiUrl, this.buildFetchOptions());
+      const response = await this.fetchJson(apiUrl);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -1335,7 +1378,7 @@ export class SignalKClient extends EventEmitter {
     });
 
     try {
-      const response = await fetch(url, this.buildFetchOptions());
+      const response = await this.fetchJson(url);
       if (!response.ok) {
         const detail = await response.text().catch(() => '');
         const { available, error } = this.classifyHistoryFailure(response.status, detail.slice(0, 200));
@@ -1539,7 +1582,7 @@ export class SignalKClient extends EventEmitter {
     });
 
     try {
-      const response = await fetch(url, this.buildFetchOptions());
+      const response = await this.fetchJson(url);
       if (!response.ok) {
         const detail = await response.text().catch(() => '');
         const { available, error } = this.classifyHistoryFailure(response.status, detail.slice(0, 200));

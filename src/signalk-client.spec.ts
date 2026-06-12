@@ -871,7 +871,8 @@ describe('SignalKClient', () => {
       expect(client.connected).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('/signalk/v1/api/vessels/self'),
-        {}, // buildFetchOptions() returns empty object when no token
+        // fetchJson now attaches an AbortController signal for the timeout.
+        expect.objectContaining({ signal: expect.anything() }),
       );
     });
 
