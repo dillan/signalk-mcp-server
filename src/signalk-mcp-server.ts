@@ -441,17 +441,53 @@ export class SignalKMCPServer {
    * // - get_path_value({"path": "navigation.position"})
    * // - execute_code({"code": "const vessel = await getVesselState(); ..."})
    */
+  /**
+   * Probe (once) whether the isolated-vm addon is loadable, so the server can
+   * fall back to the direct read tools when it isn't.
+   */
+  private async ensureCodeExecutionProbe(): Promise<void> {
+    if (this.codeExecutionProbed) {
+      return;
+    }
+    this.codeExecutionProbed = true;
+    if (this.sandbox) {
+      this.codeExecutionAvailable = await this.sandbox.isAvailable();
+      if (!this.codeExecutionAvailable) {
+        console.error(
+          '[DEGRADED MODE] isolated-vm is unavailable; serving the direct read ' +
+            'tools instead of execute_code.',
+        );
+      }
+    }
+  }
+
+  /** Code-execution mode, but the isolate addon could not be loaded. */
+  private get codeExecutionDegraded(): boolean {
+    return (
+      (this.executionMode === 'code' || this.executionMode === 'hybrid') &&
+      !this.codeExecutionAvailable
+    );
+  }
+
   setupToolHandlers(): void {
     this.server.setRequestHandler(ListToolsRequestSchema, () => {
       const tools: any[] = [];
 
-      // Add legacy tools if in 'tools' or 'hybrid' mode
-      if (this.executionMode === 'tools' || this.executionMode === 'hybrid') {
+      // Add the direct read tools in 'tools'/'hybrid' mode, or as a fallback
+      // when code execution is degraded (the isolate addon could not load).
+      if (
+        this.executionMode === 'tools' ||
+        this.executionMode === 'hybrid' ||
+        this.codeExecutionDegraded
+      ) {
         tools.push(...this.getToolDefinitions());
       }
 
-      // Add execute_code tool if in 'code' or 'hybrid' mode
-      if (this.executionMode === 'code' || this.executionMode === 'hybrid') {
+      // Add execute_code only when code execution actually works.
+      if (
+        (this.executionMode === 'code' || this.executionMode === 'hybrid') &&
+        this.codeExecutionAvailable
+      ) {
         tools.push({
           name: 'execute_code',
           description:
@@ -496,8 +532,13 @@ export class SignalKMCPServer {
             return await this.executeCode(args.code);
           }
 
-          // Handle legacy tools (only in tools/hybrid mode)
-          if (this.executionMode === 'tools' || this.executionMode === 'hybrid') {
+          // Handle the direct read tools: in tools/hybrid mode, or as a fallback
+          // when code execution is degraded (the isolate addon could not load).
+          if (
+            this.executionMode === 'tools' ||
+            this.executionMode === 'hybrid' ||
+            this.codeExecutionDegraded
+          ) {
             switch (name) {
               case 'get_vessel_state':
                 return await this.getVesselState();
@@ -972,6 +1013,9 @@ export class SignalKMCPServer {
    * // "signalk-mcp-server v1.0.0 running on stdio"
    */
   async run(): Promise<void> {
+    // Probe code-execution availability before serving so the tool list
+    // reflects degraded mode from the first request.
+    await this.ensureCodeExecutionProbe();
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error(`${this.serverName} v${this.serverVersion} running on stdio`);

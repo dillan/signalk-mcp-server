@@ -316,13 +316,14 @@ describe('SignalKMCPServer', () => {
       }) as any;
 
     test('code mode serves the direct read tools and drops execute_code when the addon is unavailable', async () => {
-      new SignalKMCPServer({
+      const server = new SignalKMCPServer({
         executionMode: 'code',
         sandbox: unavailableSandbox(),
       });
+      await server.run(); // run() probes availability before serving
       const listToolsHandler = mockServer.setRequestHandler.mock
-        .calls[0][1] as () => Promise<any>;
-      const result = await listToolsHandler();
+        .calls[0][1] as () => any;
+      const result = listToolsHandler();
       const names = result.tools.map((t: any) => t.name);
       expect(names).toContain('get_vessel_state');
       expect(names).toContain('get_path_value');
@@ -336,10 +337,11 @@ describe('SignalKMCPServer', () => {
         data: {},
         timestamp: '2026-06-12T00:00:00.000Z',
       } as any);
-      new SignalKMCPServer({
+      const server = new SignalKMCPServer({
         executionMode: 'code',
         sandbox: unavailableSandbox(),
       });
+      await server.run();
       const callToolHandler = mockServer.setRequestHandler.mock
         .calls[1][1] as (request: any) => Promise<any>;
       const result = await callToolHandler({
@@ -350,11 +352,13 @@ describe('SignalKMCPServer', () => {
     });
 
     test('normal code mode (addon available) still advertises execute_code only', async () => {
-      // default mocked sandbox: isAvailable -> true
-      new SignalKMCPServer({ executionMode: 'code' });
+      // default mocked sandbox: isAvailable -> true; even after run() the addon
+      // is available, so execute_code stays and the direct tools are not added.
+      const server = new SignalKMCPServer({ executionMode: 'code' });
+      await server.run();
       const listToolsHandler = mockServer.setRequestHandler.mock
-        .calls[0][1] as () => Promise<any>;
-      const result = await listToolsHandler();
+        .calls[0][1] as () => any;
+      const result = listToolsHandler();
       const names = result.tools.map((t: any) => t.name);
       expect(names).toContain('execute_code');
       expect(names).not.toContain('get_vessel_state');
