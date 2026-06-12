@@ -959,15 +959,57 @@ export class SignalKClient extends EventEmitter {
   async getTargets(
     options?: TargetsQueryOptions,
   ): Promise<UnifiedTargetsResponse> {
-    // STUB - real implementation follows in the next commit.
-    await Promise.resolve();
-    void options;
+    const source = options?.source || 'all';
+    const wantAis = source === 'ais' || source === 'all';
+    const wantRadar = source === 'radar' || source === 'all';
+
+    // Each underlying read already degrades gracefully, but guard against a
+    // rejection too so one failing source never sinks the whole call.
+    const [ais, radar] = await Promise.all([
+      wantAis ? this.getAISTargets(1, 50).catch(() => null) : null,
+      wantRadar ? this.getRadarTargets().catch(() => null) : null,
+    ]);
+
+    const targets: any[] = [];
+    const sources: UnifiedTargetsResponse['sources'] = {};
+
+    if (wantAis) {
+      if (ais && !ais.error) {
+        sources.ais = { available: true, count: ais.targets.length };
+        for (const t of ais.targets) {
+          targets.push({ ...t, source: 'ais' });
+        }
+      } else {
+        sources.ais = { available: false, count: 0 };
+      }
+    }
+    if (wantRadar) {
+      if (radar && radar.available) {
+        sources.radar = { available: true, count: radar.targets.length };
+        for (const t of radar.targets) {
+          targets.push({ ...t, source: 'radar' });
+        }
+      } else {
+        sources.radar = { available: false, count: 0 };
+      }
+    }
+
+    // Sort by distance (closest first); targets without a distance keep order.
+    targets.sort((a, b) => {
+      if (a.distanceMeters !== undefined && b.distanceMeters !== undefined) {
+        return a.distanceMeters - b.distanceMeters;
+      }
+      if (a.distanceMeters !== undefined) return -1;
+      if (b.distanceMeters !== undefined) return 1;
+      return 0;
+    });
+
     return {
-      available: false,
+      available: !!(sources.ais?.available || sources.radar?.available),
       connected: this.connected,
-      count: 0,
-      targets: [],
-      sources: {},
+      count: targets.length,
+      targets,
+      sources,
       timestamp: new Date().toISOString(),
     };
   }
