@@ -2831,6 +2831,122 @@ describe('SignalKClient', () => {
     });
   });
 
+  describe('Unified Targets', () => {
+    beforeEach(() => {
+      client = new SignalKClient({
+        hostname: 'example.com',
+        port: 3000,
+        useTLS: false,
+      });
+    });
+
+    const aisResult = {
+      connected: true,
+      count: 1,
+      targets: [
+        {
+          mmsi: '111111111',
+          distanceMeters: 2000,
+          lastUpdate: '2026-06-12T00:00:00.000Z',
+        },
+      ],
+      timestamp: '2026-06-12T00:00:00.000Z',
+    };
+    const radarResult = {
+      available: true,
+      connected: true,
+      count: 1,
+      targets: [{ radar_id: 'r1', id: 1, distanceMeters: 500 }],
+      deviceStatus: { r1: 'ok' },
+      timestamp: '2026-06-12T00:00:00.000Z',
+    };
+
+    test('merges AIS and radar, tags source, sorts by distance', async () => {
+      const aisSpy = jest
+        .spyOn(client, 'getAISTargets')
+        .mockResolvedValue(aisResult as any);
+      const radarSpy = jest
+        .spyOn(client, 'getRadarTargets')
+        .mockResolvedValue(radarResult as any);
+      const r = await client.getTargets();
+      expect(aisSpy).toHaveBeenCalled();
+      expect(radarSpy).toHaveBeenCalled();
+      expect(r.available).toBe(true);
+      expect(r.count).toBe(2);
+      // radar (500 m) sorts before ais (2000 m)
+      expect(r.targets[0].source).toBe('radar');
+      expect(r.targets[0].radar_id).toBe('r1');
+      expect(r.targets[1].source).toBe('ais');
+      expect(r.targets[1].mmsi).toBe('111111111');
+      expect(r.sources.ais).toEqual({ available: true, count: 1 });
+      expect(r.sources.radar).toEqual({ available: true, count: 1 });
+    });
+
+    test("source 'ais' only queries AIS", async () => {
+      const aisSpy = jest
+        .spyOn(client, 'getAISTargets')
+        .mockResolvedValue(aisResult as any);
+      const radarSpy = jest
+        .spyOn(client, 'getRadarTargets')
+        .mockResolvedValue(radarResult as any);
+      const r = await client.getTargets({ source: 'ais' });
+      expect(aisSpy).toHaveBeenCalled();
+      expect(radarSpy).not.toHaveBeenCalled();
+      expect(r.count).toBe(1);
+      expect(r.targets[0].source).toBe('ais');
+      expect(r.sources.radar).toBeUndefined();
+    });
+
+    test("source 'radar' only queries radar", async () => {
+      const aisSpy = jest
+        .spyOn(client, 'getAISTargets')
+        .mockResolvedValue(aisResult as any);
+      const radarSpy = jest
+        .spyOn(client, 'getRadarTargets')
+        .mockResolvedValue(radarResult as any);
+      const r = await client.getTargets({ source: 'radar' });
+      expect(radarSpy).toHaveBeenCalled();
+      expect(aisSpy).not.toHaveBeenCalled();
+      expect(r.targets[0].source).toBe('radar');
+      expect(r.sources.ais).toBeUndefined();
+    });
+
+    test('available:false when all requested sources are unavailable', async () => {
+      jest.spyOn(client, 'getAISTargets').mockResolvedValue({
+        connected: false,
+        count: 0,
+        targets: [],
+        timestamp: 't',
+        error: 'down',
+      } as any);
+      jest.spyOn(client, 'getRadarTargets').mockResolvedValue({
+        available: false,
+        connected: false,
+        count: 0,
+        targets: [],
+        deviceStatus: {},
+        timestamp: 't',
+        reason: 'no_provider',
+      } as any);
+      const r = await client.getTargets();
+      expect(r.available).toBe(false);
+      expect(r.count).toBe(0);
+      expect(r.sources.ais).toEqual({ available: false, count: 0 });
+    });
+
+    test('a rejecting source does not throw; the other still reports', async () => {
+      jest
+        .spyOn(client, 'getAISTargets')
+        .mockRejectedValue(new Error('boom'));
+      jest
+        .spyOn(client, 'getRadarTargets')
+        .mockResolvedValue(radarResult as any);
+      const r = await client.getTargets();
+      expect(r.targets.some((t: any) => t.source === 'radar')).toBe(true);
+      expect(r.sources.ais).toEqual({ available: false, count: 0 });
+    });
+  });
+
   describe('History Methods', () => {
     beforeEach(() => {
       client = new SignalKClient({

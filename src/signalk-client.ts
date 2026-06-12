@@ -28,6 +28,8 @@ import type {
   ResourcesResponse,
   RadarTarget,
   RadarTargetsResponse,
+  TargetsQueryOptions,
+  UnifiedTargetsResponse,
 } from './types/index.js';
 
 export class SignalKClient extends EventEmitter {
@@ -947,6 +949,26 @@ export class SignalKClient extends EventEmitter {
       targets,
       deviceStatus,
       timestamp: now(),
+    };
+  }
+
+  /**
+   * All nearby targets from AIS and/or radar in one distance-sorted list, each
+   * tagged with its source. Read-only; never throws. AIS is the nearest 50.
+   */
+  async getTargets(
+    options?: TargetsQueryOptions,
+  ): Promise<UnifiedTargetsResponse> {
+    // STUB - real implementation follows in the next commit.
+    await Promise.resolve();
+    void options;
+    return {
+      available: false,
+      connected: this.connected,
+      count: 0,
+      targets: [],
+      sources: {},
+      timestamp: new Date().toISOString(),
     };
   }
 

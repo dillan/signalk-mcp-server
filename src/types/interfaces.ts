@@ -312,3 +312,26 @@ export interface RadarTargetsResponse {
   reason?: string;
   error?: string;
 }
+
+export interface TargetsQueryOptions {
+  // which target sources to include (default 'all')
+  source?: 'ais' | 'radar' | 'all';
+}
+
+export interface UnifiedTargetsResponse {
+  // true when at least one requested source is available
+  available: boolean;
+  connected: boolean;
+  count: number;
+  // AIS + radar targets, each tagged with source ('ais' | 'radar'), sorted by
+  // distanceMeters (closest first). No cross-source dedup - the same physical
+  // vessel may appear once per source (AIS has no shared key with a radar echo).
+  targets: any[];
+  // per-source availability and returned count (AIS is the nearest 50)
+  sources: {
+    ais?: { available: boolean; count: number };
+    radar?: { available: boolean; count: number };
+  };
+  timestamp: string;
+  error?: string;
+}

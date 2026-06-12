@@ -661,6 +661,27 @@ export class SignalKMCPServer {
         },
       },
       {
+        name: 'get_targets',
+        description:
+          'Get all nearby targets from AIS and/or radar in one distance-sorted ' +
+          'list, each tagged with source ("ais" or "radar"). source is "ais" | ' +
+          '"radar" | "all" (default "all"). AIS contributes the nearest 50 (with ' +
+          'the broadcast navigation paths incl. COG/SOG); radar contributes every ' +
+          'tracked target (with server-computed danger cpa/tcpa). No cross-source ' +
+          'dedup. sources reports each source\'s availability and count.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            source: {
+              type: 'string',
+              enum: ['ais', 'radar', 'all'],
+              description: 'Which sources to include (default "all")',
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
         name: 'get_radar_targets',
         description:
           'Get radar (M)ARPA targets across all radar devices (read-only). ' +
@@ -755,7 +776,7 @@ export class SignalKMCPServer {
             'Available functions: await getVesselState(), await getAisTargets(options), ' +
             'await getActiveAlarms(), await listAvailablePaths(), await getPathValue(path), await getConnectionStatus(), ' +
             'await getHistory({paths, from, to, resolution}), await listHistoryPaths(options), await listHistoryContexts(options), await getCourseStatus(), await getAutopilotStatus(pilotId?), ' +
-            'await getWeatherObservations(options?), await getWeatherForecast({type}?), await getWeatherWarnings(options?), await getResources({type}), await getRadarTargets(). ' +
+            'await getWeatherObservations(options?), await getWeatherForecast({type}?), await getWeatherWarnings(options?), await getResources({type}), await getRadarTargets(), await getTargets({source}?). ' +
             'History needs a SignalK history provider - check result.available; times are ISO-8601 and resolution is in SECONDS. ' +
             'Code MUST: (1) be wrapped in async IIFE, (2) await all SDK calls, (3) return JSON.stringify() of result. ' +
             'Example: (async () => { const vessel = await getVesselState(); return JSON.stringify({ name: vessel.data.name?.value }); })()',
@@ -852,6 +873,11 @@ export class SignalKMCPServer {
                   await this.signalkClient.getResources(args),
                   'getResources()',
                 );
+              case 'get_targets':
+                return this.wrapToolResult(
+                  await this.signalkClient.getTargets(args),
+                  'getTargets()',
+                );
               case 'get_radar_targets':
                 return this.wrapToolResult(
                   await this.signalkClient.getRadarTargets(),
@@ -880,7 +906,7 @@ export class SignalKMCPServer {
               throw new McpError(
                 ErrorCode.MethodNotFound,
                 `Tool ${name} is not available in code-only mode. Use execute_code tool with SignalK SDK functions instead. ` +
-                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus(), getAutopilotStatus(), getWeatherObservations(), getWeatherForecast(), getWeatherWarnings(), getResources(), getRadarTargets()`,
+                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus(), getAutopilotStatus(), getWeatherObservations(), getWeatherForecast(), getWeatherWarnings(), getResources(), getRadarTargets(), getTargets()`,
               );
           }
         } catch (error: any) {

@@ -17,6 +17,8 @@ import type {
   ResourcesQueryOptions,
   ResourcesResponse,
   RadarTargetsResponse,
+  TargetsQueryOptions,
+  UnifiedTargetsResponse,
 } from '../types/index.js';
 
 /**
@@ -368,6 +370,26 @@ export class SignalKBinding {
    */
   async getRadarTargets(): Promise<RadarTargetsResponse> {
     return this.client.getRadarTargets();
+  }
+
+  /**
+   * All nearby targets from AIS and/or radar in one distance-sorted list, each
+   * tagged with its `source` ('ais' | 'radar').
+   *
+   * Pass `{ source: 'ais' | 'radar' | 'all' }` (default 'all'). AIS contributes
+   * the nearest 50; radar contributes every tracked target. There is no
+   * cross-source dedup. `sources` reports each source's availability and count.
+   * AIS targets carry the broadcast `navigation.*` paths (incl. COG/SOG) which a
+   * CPA/TCPA calculation needs; radar targets carry server-computed `danger`.
+   *
+   * @example
+   * const t = await signalk.getTargets({ source: 'all' });
+   * const near = t.targets.filter(x => x.distanceMeters < 1852); // within 1nm
+   */
+  async getTargets(
+    options?: TargetsQueryOptions,
+  ): Promise<UnifiedTargetsResponse> {
+    return this.client.getTargets(options);
   }
 
   /**

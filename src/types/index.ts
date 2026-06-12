@@ -49,6 +49,8 @@ export type {
   ResourcesResponse,
   RadarTarget,
   RadarTargetsResponse,
+  TargetsQueryOptions,
+  UnifiedTargetsResponse,
 } from './interfaces';
 
 export type {
