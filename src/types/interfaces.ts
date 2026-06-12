@@ -251,3 +251,37 @@ export interface ServerFeaturesResponse {
   timestamp: string;
   error?: string;
 }
+
+export interface ResourcesQueryOptions {
+  // which resource collection to read
+  type: 'waypoints' | 'routes' | 'regions' | 'notes' | 'charts';
+  // max records to return (charts has no limit param; notes default to 50)
+  limit?: number;
+  // square-area filter in metres (>= 100), centred on the vessel position or
+  // an explicit `position`; the server auto-centres on self. Charts: ignored.
+  distance?: number;
+  // bounding box [lon1, lat1, lon2, lat2]. Charts: ignored.
+  bbox?: [number, number, number, number];
+  // explicit centre [longitude, latitude] for `distance`. Charts: ignored.
+  position?: [number, number];
+  // map zoom level. Charts: ignored.
+  zoom?: number;
+  // weather/resources provider plugin id (all types)
+  provider?: string;
+  // notes only: a /resources/<type>/<uuid> reference to filter notes by
+  href?: string;
+}
+
+export interface ResourcesResponse {
+  available: boolean;
+  connected: boolean;
+  type: string;
+  count: number;
+  // the raw keyed object { uuid: resource }. MAY CONTAIN user PII (names,
+  // coordinates, free text) - do not echo to an LLM unsanitised.
+  resources: any;
+  timestamp: string;
+  // why the data is unavailable: 'invalid_type' | 'no_provider' | 'auth' | 'error'
+  reason?: string;
+  error?: string;
+}

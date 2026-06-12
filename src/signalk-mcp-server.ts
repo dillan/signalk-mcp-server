@@ -601,6 +601,66 @@ export class SignalKMCPServer {
         },
       },
       {
+        name: 'get_resources',
+        description:
+          'Read a resources collection (read-only): waypoints, routes, regions, ' +
+          'notes, or charts. Supports server-side filters: limit, and for all ' +
+          'except charts a distance (metres, the server centres it on the vessel ' +
+          'position) / bbox / position / zoom; notes also accept href; charts ' +
+          'accept only provider. Returns available:false when the type has no ' +
+          'resources provider. NOTE: the returned resources are raw user content ' +
+          '(names, coordinates, note text) - filter before echoing to the model.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['waypoints', 'routes', 'regions', 'notes', 'charts'],
+              description: 'Which resource collection to read',
+            },
+            limit: {
+              type: 'number',
+              description:
+                'Max records (not supported for charts; notes default to 50)',
+            },
+            distance: {
+              type: 'number',
+              description:
+                'Square-area filter in metres (>= 100), centred on the vessel; not for charts',
+            },
+            bbox: {
+              type: 'array',
+              items: { type: 'number' },
+              minItems: 4,
+              maxItems: 4,
+              description: 'Bounding box [lon1, lat1, lon2, lat2]; not for charts',
+            },
+            position: {
+              type: 'array',
+              items: { type: 'number' },
+              minItems: 2,
+              maxItems: 2,
+              description: 'Explicit centre [longitude, latitude]; not for charts',
+            },
+            zoom: {
+              type: 'number',
+              description: 'Map zoom level; not for charts',
+            },
+            provider: {
+              type: 'string',
+              description: 'Resources provider id (defaults to the server default)',
+            },
+            href: {
+              type: 'string',
+              description:
+                'Notes only: a /resources/<type>/<uuid> reference to filter by',
+            },
+          },
+          required: ['type'],
+          additionalProperties: false,
+        },
+      },
+      {
         name: 'get_connection_status',
         description: 'Get SignalK connection status and health. Useful for debugging and troubleshooting connectivity issues.',
         inputSchema: {
@@ -678,7 +738,7 @@ export class SignalKMCPServer {
             'Available functions: await getVesselState(), await getAisTargets(options), ' +
             'await getActiveAlarms(), await listAvailablePaths(), await getPathValue(path), await getConnectionStatus(), ' +
             'await getHistory({paths, from, to, resolution}), await listHistoryPaths(options), await listHistoryContexts(options), await getCourseStatus(), await getAutopilotStatus(pilotId?), ' +
-            'await getWeatherObservations(options?), await getWeatherForecast({type}?), await getWeatherWarnings(options?). ' +
+            'await getWeatherObservations(options?), await getWeatherForecast({type}?), await getWeatherWarnings(options?), await getResources({type}). ' +
             'History needs a SignalK history provider - check result.available; times are ISO-8601 and resolution is in SECONDS. ' +
             'Code MUST: (1) be wrapped in async IIFE, (2) await all SDK calls, (3) return JSON.stringify() of result. ' +
             'Example: (async () => { const vessel = await getVesselState(); return JSON.stringify({ name: vessel.data.name?.value }); })()',
@@ -770,6 +830,11 @@ export class SignalKMCPServer {
                   await this.signalkClient.getWeatherWarnings(args),
                   'getWeatherWarnings()',
                 );
+              case 'get_resources':
+                return this.wrapToolResult(
+                  await this.signalkClient.getResources(args),
+                  'getResources()',
+                );
               case 'get_connection_status':
                 return this.getConnectionStatus();
               case 'get_initial_context':
@@ -793,7 +858,7 @@ export class SignalKMCPServer {
               throw new McpError(
                 ErrorCode.MethodNotFound,
                 `Tool ${name} is not available in code-only mode. Use execute_code tool with SignalK SDK functions instead. ` +
-                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus(), getAutopilotStatus(), getWeatherObservations(), getWeatherForecast(), getWeatherWarnings()`,
+                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus(), getAutopilotStatus(), getWeatherObservations(), getWeatherForecast(), getWeatherWarnings(), getResources()`,
               );
           }
         } catch (error: any) {

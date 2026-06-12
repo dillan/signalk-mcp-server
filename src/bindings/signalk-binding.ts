@@ -14,6 +14,8 @@ import type {
   AutopilotStatusResponse,
   WeatherQueryOptions,
   WeatherResponse,
+  ResourcesQueryOptions,
+  ResourcesResponse,
 } from '../types/index.js';
 
 /**
@@ -318,6 +320,30 @@ export class SignalKBinding {
     options?: WeatherQueryOptions,
   ): Promise<WeatherResponse> {
     return this.client.getWeatherWarnings(options);
+  }
+
+  /**
+   * Read a resources collection (waypoints / routes / regions / notes / charts)
+   * with server-side filters (read-only).
+   *
+   * Charts accept only `provider`; the other types accept limit / distance /
+   * bbox / position / zoom, and notes also accept `href`. The server centres a
+   * `distance` filter on the vessel position automatically. The returned
+   * `resources` object is raw user content - filter it in the isolate, and be
+   * careful echoing names / coordinates / note text back to the model.
+   *
+   * @param options - { type, limit?, distance?, bbox?, position?, zoom?, provider?, href? }
+   * @returns ResourcesResponse; available:false when the resource type has no
+   *   provider.
+   *
+   * @example
+   * const r = await signalk.getResources({ type: 'waypoints', distance: 5000 });
+   * if (r.available) console.log(Object.keys(r.resources).length, 'waypoints nearby');
+   */
+  async getResources(
+    options: ResourcesQueryOptions,
+  ): Promise<ResourcesResponse> {
+    return this.client.getResources(options);
   }
 
   /**

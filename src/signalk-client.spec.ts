@@ -48,7 +48,7 @@ describe('SignalKClient', () => {
     // mockResolvedValueOnce queue, so an unconsumed queued response from one
     // test can never bleed into the next.
     jest.clearAllMocks();
-    mockFetch.mockClear();
+    mockFetch.mockReset();
 
     // Get the mock constructor using dynamic import
     mockSignalKClient = {
@@ -2543,6 +2543,126 @@ describe('SignalKClient', () => {
       expect(r.available).toBe(false);
       expect(r.apis).toEqual([]);
       expect(r.plugins).toEqual([]);
+    });
+  });
+
+  describe('Resources Methods', () => {
+    beforeEach(() => {
+      client = new SignalKClient({
+        hostname: 'example.com',
+        port: 3000,
+        useTLS: false,
+      });
+    });
+
+    const ok = (body: any) =>
+      ({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
+    const err = (status: number) =>
+      ({
+        ok: false,
+        status,
+        statusText: 'err',
+        text: () => Promise.resolve(''),
+      } as Response);
+
+    // Scrubbed fixture (synthetic UUID + coordinates).
+    const waypointsBody = {
+      'urn:mrn:signalk:uuid:11111111-1111-4111-8111-111111111111': {
+        name: 'Test Waypoint',
+        feature: {
+          geometry: { type: 'Point', coordinates: [-76.49, 38.97] },
+          properties: {},
+        },
+        timestamp: '2026-06-12T00:00:00.000Z',
+        $source: 'resources-provider',
+      },
+    };
+
+    test('reads a resource collection and returns the keyed object + count', async () => {
+      mockFetch.mockResolvedValueOnce(ok(waypointsBody));
+      const r = await client.getResources({ type: 'waypoints' });
+      expect(r.available).toBe(true);
+      expect(r.type).toBe('waypoints');
+      expect(r.count).toBe(1);
+      expect(r.resources).toEqual(waypointsBody);
+      expect(decodeURIComponent(mockFetch.mock.calls[0][0] as string)).toContain(
+        '/signalk/v2/api/resources/waypoints',
+      );
+    });
+
+    test('distance >= 100 is sent; distance < 100 is dropped', async () => {
+      mockFetch.mockResolvedValueOnce(ok(waypointsBody));
+      await client.getResources({ type: 'routes', distance: 5000 });
+      expect(decodeURIComponent(mockFetch.mock.calls[0][0] as string)).toContain(
+        'distance=5000',
+      );
+
+      mockFetch.mockResolvedValueOnce(ok(waypointsBody));
+      await client.getResources({ type: 'routes', distance: 50 });
+      expect(
+        decodeURIComponent(mockFetch.mock.calls[1][0] as string),
+      ).not.toContain('distance=');
+    });
+
+    test('charts send only provider, never the geo/limit filters', async () => {
+      mockFetch.mockResolvedValueOnce(ok({}));
+      await client.getResources({
+        type: 'charts',
+        provider: 'my-charts',
+        distance: 5000,
+        limit: 10,
+        zoom: 4,
+        position: [-76.49, 38.97],
+      });
+      const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+      expect(url).toContain('/resources/charts');
+      expect(url).toContain('provider=my-charts');
+      expect(url).not.toContain('distance=');
+      expect(url).not.toContain('limit=');
+      expect(url).not.toContain('zoom=');
+      expect(url).not.toContain('position=');
+    });
+
+    test('notes default to limit 50 and accept href', async () => {
+      mockFetch.mockResolvedValueOnce(ok({}));
+      await client.getResources({
+        type: 'notes',
+        href: '/resources/waypoints/abc',
+      });
+      const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+      expect(url).toContain('limit=50');
+      expect(url).toContain('href=/resources/waypoints/abc');
+    });
+
+    test('href is ignored for non-note types', async () => {
+      mockFetch.mockResolvedValueOnce(ok(waypointsBody));
+      await client.getResources({
+        type: 'waypoints',
+        href: '/resources/waypoints/abc',
+      });
+      expect(
+        decodeURIComponent(mockFetch.mock.calls[0][0] as string),
+      ).not.toContain('href=');
+    });
+
+    test('invalid type => available:false, no request sent', async () => {
+      const r = await client.getResources({ type: 'bogus' as any });
+      expect(r.available).toBe(false);
+      expect(r.reason).toBe('invalid_type');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test('404 => available:false (no provider), never throws', async () => {
+      mockFetch.mockResolvedValueOnce(err(404));
+      const r = await client.getResources({ type: 'waypoints' });
+      expect(r.available).toBe(false);
+      expect(r.reason).toBe('no_provider');
+    });
+
+    test('network error => available:false, no throw', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('network down'));
+      const r = await client.getResources({ type: 'waypoints' });
+      expect(r.available).toBe(false);
     });
   });
 

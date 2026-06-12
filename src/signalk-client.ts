@@ -24,6 +24,8 @@ import type {
   WeatherResponse,
   ServerInfoResponse,
   ServerFeaturesResponse,
+  ResourcesQueryOptions,
+  ResourcesResponse,
 } from './types/index.js';
 
 export class SignalKClient extends EventEmitter {
@@ -210,6 +212,27 @@ export class SignalKClient extends EventEmitter {
     const queryString = query.toString();
     const suffix = queryString ? `?${queryString}` : '';
     return `${this.buildHttpUrl()}/signalk/v2/api/weather/${endpoint}${suffix}`;
+  }
+
+  /**
+   * Build a SignalK v2 resources API URL with a query string. Undefined / empty
+   * params are dropped.
+   * @param type - 'waypoints' | 'routes' | 'regions' | 'notes' | 'charts'
+   * @param params - server-side filters (limit, distance, bbox, position, ...)
+   */
+  buildResourcesApiUrl(
+    type: string,
+    params: Record<string, string | number | undefined> = {},
+  ): string {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== '') {
+        query.set(key, String(value));
+      }
+    }
+    const queryString = query.toString();
+    const suffix = queryString ? `?${queryString}` : '';
+    return `${this.buildHttpUrl()}/signalk/v2/api/resources/${type}${suffix}`;
   }
 
   /**
@@ -658,6 +681,25 @@ export class SignalKClient extends EventEmitter {
         `Features request failed: ${error?.message || String(error)}`,
       );
     }
+  }
+
+  /**
+   * Read a SignalK resources collection (waypoints / routes / regions / notes /
+   * charts) with server-side filters. Read-only; never throws. The response is
+   * the raw keyed object the server returns and may contain user content.
+   */
+  async getResources(options: ResourcesQueryOptions): Promise<ResourcesResponse> {
+    // STUB - real implementation follows in the next commit.
+    await Promise.resolve();
+    return {
+      available: false,
+      connected: this.connected,
+      type: options?.type || '',
+      count: 0,
+      resources: {},
+      timestamp: new Date().toISOString(),
+      reason: 'not implemented',
+    };
   }
 
   /**

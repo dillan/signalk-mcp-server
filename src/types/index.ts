@@ -45,6 +45,8 @@ export type {
   WeatherResponse,
   ServerInfoResponse,
   ServerFeaturesResponse,
+  ResourcesQueryOptions,
+  ResourcesResponse,
 } from './interfaces';
 
 export type {
