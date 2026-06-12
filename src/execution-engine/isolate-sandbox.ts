@@ -81,6 +81,20 @@ export class IsolateSandbox {
   }
 
   /**
+   * Whether the optional isolated-vm native addon can be loaded in this runtime.
+   * Lets the server decide up front whether code execution will work (and fall
+   * back to the direct read tools when it won't). The result is cached.
+   */
+  async isAvailable(): Promise<boolean> {
+    try {
+      await loadIvm();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Execute code in a fresh V8 isolate
    *
    * @param code - JavaScript/TypeScript code to execute

@@ -65,6 +65,23 @@ jest.mock('./signalk-client', () => ({
 }));
 const MockedSignalKClient = jest.mocked(SignalKClient);
 
+// Mock the isolate sandbox so the server spec never loads the native isolated-vm
+// addon (it is excluded from the unit suite). isAvailable defaults to true; the
+// degraded-mode test injects its own sandbox with isAvailable:false.
+jest.mock('./execution-engine/isolate-sandbox', () => ({
+  IsolateSandbox: jest.fn().mockImplementation(() => ({
+    isAvailable: jest.fn(() => Promise.resolve(true)),
+    execute: jest.fn(() =>
+      Promise.resolve({
+        success: true,
+        result: undefined,
+        logs: [],
+        executionTime: 0,
+      }),
+    ),
+  })),
+}));
+
 // Mock the MCP SDK components
 const mockServer = {
   setRequestHandler: jest.fn(),
@@ -288,6 +305,59 @@ describe('SignalKMCPServer', () => {
       expect(aisTargetsTool.inputSchema.properties.page.type).toBe('number');
       expect(aisTargetsTool.inputSchema.properties.pageSize.type).toBe('number');
       expect(aisTargetsTool.inputSchema.properties.pageSize.maximum).toBe(50);
+    });
+  });
+
+  describe('Degraded mode (isolated-vm unavailable)', () => {
+    const unavailableSandbox = () =>
+      ({
+        isAvailable: jest.fn(() => Promise.resolve(false)),
+        execute: jest.fn(),
+      }) as any;
+
+    test('code mode serves the direct read tools and drops execute_code when the addon is unavailable', async () => {
+      new SignalKMCPServer({
+        executionMode: 'code',
+        sandbox: unavailableSandbox(),
+      });
+      const listToolsHandler = mockServer.setRequestHandler.mock
+        .calls[0][1] as () => Promise<any>;
+      const result = await listToolsHandler();
+      const names = result.tools.map((t: any) => t.name);
+      expect(names).toContain('get_vessel_state');
+      expect(names).toContain('get_path_value');
+      expect(names).not.toContain('execute_code');
+    });
+
+    test('code mode dispatches a direct read tool when degraded', async () => {
+      mockSignalKClient.getVesselState.mockResolvedValue({
+        connected: true,
+        context: 'vessels.self',
+        data: {},
+        timestamp: '2026-06-12T00:00:00.000Z',
+      } as any);
+      new SignalKMCPServer({
+        executionMode: 'code',
+        sandbox: unavailableSandbox(),
+      });
+      const callToolHandler = mockServer.setRequestHandler.mock
+        .calls[1][1] as (request: any) => Promise<any>;
+      const result = await callToolHandler({
+        params: { name: 'get_vessel_state', arguments: {} },
+      });
+      expect(result.content[0].type).toBe('text');
+      expect(mockSignalKClient.getVesselState).toHaveBeenCalled();
+    });
+
+    test('normal code mode (addon available) still advertises execute_code only', async () => {
+      // default mocked sandbox: isAvailable -> true
+      new SignalKMCPServer({ executionMode: 'code' });
+      const listToolsHandler = mockServer.setRequestHandler.mock
+        .calls[0][1] as () => Promise<any>;
+      const result = await listToolsHandler();
+      const names = result.tools.map((t: any) => t.name);
+      expect(names).toContain('execute_code');
+      expect(names).not.toContain('get_vessel_state');
     });
   });
 

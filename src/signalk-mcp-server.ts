@@ -31,6 +31,11 @@ export interface SignalKMCPServerOptions {
    * - 'hybrid': Both tools and code execution available (for migration only)
    */
   executionMode?: 'tools' | 'code' | 'hybrid';
+  /**
+   * Inject a sandbox (mainly for tests). Defaults to a new IsolateSandbox.
+   * Lets a test drive the isolated-vm-unavailable (degraded) path.
+   */
+  sandbox?: IsolateSandbox;
 }
 
 /**
@@ -72,6 +77,10 @@ export class SignalKMCPServer {
   private sandbox?: IsolateSandbox;
   private binding?: SignalKBinding;
   private sdkCode?: string;
+  // Whether the isolated-vm addon is loadable. Probed once, lazily; until then
+  // we assume code execution works (optimistic).
+  private codeExecutionProbed = false;
+  private codeExecutionAvailable = true;
 
   /**
    * Creates a new SignalK MCP Server instance with configuration from options or environment variables
@@ -133,7 +142,7 @@ export class SignalKMCPServer {
 
     // Initialize code execution components if needed
     if (this.executionMode === 'code' || this.executionMode === 'hybrid') {
-      this.sandbox = new IsolateSandbox();
+      this.sandbox = options.sandbox || new IsolateSandbox();
       this.binding = new SignalKBinding(this.signalkClient);
 
       // Generate SDK code from tools
