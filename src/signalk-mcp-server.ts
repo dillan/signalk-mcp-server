@@ -251,6 +251,7 @@ export class SignalKMCPServer {
     name: string;
     description: string;
     inputSchema: any;
+    annotations?: { readOnlyHint?: boolean; openWorldHint?: boolean };
   }> {
     return [
       {
@@ -392,7 +393,13 @@ export class SignalKMCPServer {
           additionalProperties: false,
         },
       },
-    ];
+      // Every tool here only reads from the SignalK server, so they all carry
+      // readOnlyHint:true. Clients use this to show "safe to run" in their
+      // approval UI. execute_code is annotated separately (it is not read-only).
+    ].map((tool) => ({
+      ...tool,
+      annotations: { readOnlyHint: true },
+    }));
   }
 
   /**
@@ -464,6 +471,11 @@ export class SignalKMCPServer {
             required: ['code'],
             additionalProperties: false,
           },
+          // execute_code runs caller-supplied JavaScript. The SignalK binding it
+          // exposes is read-only, but arbitrary code is something a client should
+          // approve rather than auto-run, so readOnlyHint is false. It reaches an
+          // external SignalK server, so openWorldHint is true.
+          annotations: { readOnlyHint: false, openWorldHint: true },
         });
       }
 
