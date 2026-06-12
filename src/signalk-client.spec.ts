@@ -1948,4 +1948,268 @@ describe('SignalKClient', () => {
       expect((client as any).shouldIncludeAISPath('unknown.path')).toBe(false);
     });
   });
+
+  describe('History Methods', () => {
+    beforeEach(() => {
+      client = new SignalKClient({
+        hostname: 'example.com',
+        port: 3000,
+        useTLS: false,
+      });
+    });
+
+    // A small real-shaped fixture: two columns (a scalar + a position) and a
+    // null gap in the last row.
+    const valuesFixture = {
+      context: 'vessels.self',
+      range: { from: '2026-06-11T06:00:00.000Z', to: '2026-06-11T06:10:00.000Z' },
+      values: [
+        { path: 'navigation.speedOverGround', method: 'max' },
+        { path: 'navigation.position', method: 'first' },
+      ],
+      data: [
+        ['2026-06-11T06:00:00.000Z', 3.14, [-122.47, 37.81]],
+        ['2026-06-11T06:05:00.000Z', 0, [-122.48, 37.82]],
+        ['2026-06-11T06:10:00.000Z', null, null],
+      ],
+    };
+
+    const okJson = (body: any) =>
+      ({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
+    const errResp = (status: number) =>
+      ({
+        ok: false,
+        status,
+        statusText: 'err',
+        text: () => Promise.resolve('boom'),
+      } as Response);
+
+    describe('buildHistoryApiUrl', () => {
+      test('targets the v2 history base and drops undefined params', () => {
+        const url = client.buildHistoryApiUrl('values', {
+          context: 'vessels.self',
+          paths: 'navigation.speedOverGround:max',
+          from: '2026-06-11T06:00:00Z',
+          to: undefined,
+          resolution: 60,
+        });
+        expect(
+          url.startsWith('http://example.com:3000/signalk/v2/api/history/values?'),
+        ).toBe(true);
+        const decoded = decodeURIComponent(url);
+        expect(decoded).toContain('paths=navigation.speedOverGround:max');
+        expect(decoded).toContain('from=2026-06-11T06:00:00Z');
+        expect(decoded).toContain('resolution=60'); // seconds, not ms
+        expect(url).not.toContain('to='); // undefined dropped
+      });
+    });
+
+    describe('getHistory transform', () => {
+      test('maps each response column to its path by index, keeping nulls and [lon,lat]', async () => {
+        mockFetch.mockResolvedValueOnce(okJson(valuesFixture));
+        const h = await client.getHistory({
+          paths: ['navigation.speedOverGround:max', 'navigation.position:first'],
+          from: '2026-06-11T06:00:00Z',
+          to: '2026-06-11T06:10:00Z',
+          resolution: 300,
+        });
+        expect(h.available).toBe(true);
+        expect(h.rowCount).toBe(3);
+        const sog = h.values['navigation.speedOverGround'];
+        expect(sog.map((p) => p.value)).toEqual([3.14, 0, null]); // 0 kept, null strict
+        const pos = h.values['navigation.position'];
+        expect(pos[0].value).toEqual([-122.47, 37.81]); // array passthrough
+        expect(pos[2].value).toBeNull();
+        expect(h.series).toHaveLength(2);
+        expect(h.series[1].method).toBe('first');
+        expect(h.missingPaths).toEqual([]);
+      });
+
+      test('keys by RESPONSE order, not request order', async () => {
+        const shuffled = {
+          ...valuesFixture,
+          values: [
+            { path: 'navigation.position', method: 'first' },
+            { path: 'navigation.speedOverGround', method: 'max' },
+          ],
+          data: [['2026-06-11T06:00:00.000Z', [-1, 2], 9.9]],
+        };
+        mockFetch.mockResolvedValueOnce(okJson(shuffled));
+        const h = await client.getHistory({
+          paths: ['navigation.speedOverGround', 'navigation.position'],
+          from: '2026-06-11T06:00:00Z',
+        });
+        expect(h.values['navigation.position'][0].value).toEqual([-1, 2]);
+        expect(h.values['navigation.speedOverGround'][0].value).toBe(9.9);
+      });
+
+      test('keeps duplicate paths in series and reports missing paths', async () => {
+        const dup = {
+          context: 'vessels.self',
+          range: { from: 'a', to: 'b' },
+          values: [
+            { path: 'navigation.speedOverGround', method: 'max' },
+            { path: 'navigation.speedOverGround', method: 'min' },
+          ],
+          data: [['t', 5, 1]],
+        };
+        mockFetch.mockResolvedValueOnce(okJson(dup));
+        const h = await client.getHistory({
+          paths: [
+            'navigation.speedOverGround:max',
+            'navigation.speedOverGround:min',
+            'tanks.fuel.level',
+          ],
+          from: '2026-06-11T06:00:00Z',
+        });
+        expect(h.series).toHaveLength(2);
+        expect(h.series[0].method).toBe('max');
+        expect(h.series[1].method).toBe('min');
+        // values map keyed by bare path - last (min) wins
+        expect(h.values['navigation.speedOverGround'][0].value).toBe(1);
+        expect(h.missingPaths).toContain('tanks.fuel.level');
+      });
+
+      test('empty data window is available:true with rowCount 0 (not unavailable)', async () => {
+        mockFetch.mockResolvedValueOnce(
+          okJson({
+            context: 'vessels.self',
+            range: { from: 'a', to: 'b' },
+            values: [{ path: 'navigation.speedOverGround', method: 'average' }],
+            data: [],
+          }),
+        );
+        const h = await client.getHistory({
+          paths: 'navigation.speedOverGround',
+          from: '2026-06-11T06:00:00Z',
+        });
+        expect(h.available).toBe(true);
+        expect(h.rowCount).toBe(0);
+        expect(h.values['navigation.speedOverGround']).toEqual([]);
+      });
+    });
+
+    describe('paths composition', () => {
+      test('applies default aggregate to bare paths but not to inline or position', async () => {
+        mockFetch.mockResolvedValueOnce(okJson(valuesFixture));
+        await client.getHistory({
+          paths: [
+            'navigation.speedOverGround',
+            'environment.wind.speedApparent:sma:5',
+            'navigation.position',
+          ],
+          aggregate: 'max',
+          from: '2026-06-11T06:00:00Z',
+        });
+        const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+        expect(url).toContain(
+          'paths=navigation.speedOverGround:max,environment.wind.speedApparent:sma:5,navigation.position',
+        );
+      });
+
+      test('string and array paths produce the same request', async () => {
+        mockFetch.mockResolvedValueOnce(okJson(valuesFixture));
+        await client.getHistory({
+          paths: 'navigation.speedOverGround:max',
+          from: '2026-06-11T06:00:00Z',
+        });
+        const a = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+        mockFetch.mockResolvedValueOnce(okJson(valuesFixture));
+        await client.getHistory({
+          paths: ['navigation.speedOverGround:max'],
+          from: '2026-06-11T06:00:00Z',
+        });
+        const b = decodeURIComponent(mockFetch.mock.calls[1][0] as string);
+        expect(a).toBe(b);
+      });
+    });
+
+    describe('input guards (no request sent)', () => {
+      test('missing from and duration => available:true with a clear error, no fetch', async () => {
+        const h = await client.getHistory({ paths: 'navigation.speedOverGround' });
+        expect(h.available).toBe(true);
+        expect(h.error).toMatch(/from.*duration/i);
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+      test('non-ISO from => distinct error, no fetch', async () => {
+        const h = await client.getHistory({
+          paths: 'navigation.speedOverGround',
+          from: 'yesterday',
+        });
+        expect(h.available).toBe(true);
+        expect(h.error).toMatch(/ISO-8601/);
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+      test('no paths => clear error, no fetch', async () => {
+        const h = await client.getHistory({
+          paths: [],
+          from: '2026-06-11T06:00:00Z',
+        });
+        expect(h.available).toBe(true);
+        expect(h.error).toMatch(/path/i);
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('graceful degradation (never throws, no cache fallback)', () => {
+      test('404 => available:false (no provider)', async () => {
+        mockFetch.mockResolvedValueOnce(errResp(404));
+        const h = await client.getHistory({
+          paths: 'navigation.speedOverGround',
+          from: '2026-06-11T06:00:00Z',
+        });
+        expect(h.available).toBe(false);
+        expect(h.values).toEqual({});
+        expect(h.error).toMatch(/not available|provider/i);
+      });
+      test('400 => available:true with invalid-query error', async () => {
+        mockFetch.mockResolvedValueOnce(errResp(400));
+        const h = await client.getHistory({
+          paths: 'navigation.speedOverGround',
+          from: '2026-06-11T06:00:00Z',
+        });
+        expect(h.available).toBe(true);
+        expect(h.error).toMatch(/invalid/i);
+      });
+      test('401 => available:true asking for auth', async () => {
+        mockFetch.mockResolvedValueOnce(errResp(401));
+        const h = await client.getHistory({
+          paths: 'navigation.speedOverGround',
+          from: '2026-06-11T06:00:00Z',
+        });
+        expect(h.available).toBe(true);
+        expect(h.error).toMatch(/auth|SIGNALK_TOKEN/i);
+      });
+      test('network error => available:false, no throw', async () => {
+        mockFetch.mockRejectedValueOnce(new Error('network down'));
+        const h = await client.getHistory({
+          paths: 'navigation.speedOverGround',
+          from: '2026-06-11T06:00:00Z',
+        });
+        expect(h.available).toBe(false);
+        expect(h.values).toEqual({});
+      });
+    });
+
+    describe('listHistoryPaths / listHistoryContexts', () => {
+      test('parse a JSON array of strings and default to a 24h window', async () => {
+        mockFetch.mockResolvedValueOnce(
+          okJson(['navigation.position', 'electrical.batteries.house.voltage']),
+        );
+        const r = await client.listHistoryPaths();
+        expect(r.available).toBe(true);
+        expect(r.count).toBe(2);
+        expect(r.paths).toContain('navigation.position');
+        const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+        expect(url).toContain('/signalk/v2/api/history/paths');
+        expect(url).toContain('duration=PT24H');
+      });
+      test('contexts 404 => available:false', async () => {
+        mockFetch.mockResolvedValueOnce(errResp(404));
+        const r = await client.listHistoryContexts();
+        expect(r.available).toBe(false);
+        expect(r.contexts).toEqual([]);
+      });
+    });
+  });
 });
