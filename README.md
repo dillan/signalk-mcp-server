@@ -97,6 +97,10 @@ const heading = await getPathValue({ path: "navigation.headingTrue" });
 
 // Connection status - ALSO requires await!
 const status = await getConnectionStatus();
+
+// Recorded history over a time range (see "Historical Data" below)
+const past = await getHistory({ paths: 'navigation.speedOverGround', from: '2026-06-11T06:00:00Z', resolution: 300 });
+const historyPaths = await listHistoryPaths();    // which paths have history
 ```
 
 ### Real-time Marine Data
@@ -229,6 +233,136 @@ SERVER_VERSION=1.0.6
 ```
 
 **Result:** ~300 tokens (vs 13,000 with 3 separate tool calls!)
+
+## Historical Data (History API)
+
+The SDK functions above return **live** values. The History API lets the AI look at **recorded** data over time - your track from this morning, how the wind built over the afternoon, how much the batteries drained overnight. As with everything else, the code runs in the isolate, so the AI can boil thousands of recorded points down to a few numbers before any of it reaches the model.
+
+### Requirements
+
+History is recorded by a separate SignalK plugin, so the requirements are on your **SignalK server** (not on this MCP server):
+
+- **SignalK Server 2.15 or newer** (this is where the v2 History API lives).
+- **A history provider plugin that is installed and recording**, most commonly [`signalk-to-influxdb`](https://www.npmjs.com/package/@signalk/signalk-to-influxdb) writing to an InfluxDB database. (`signalk-to-timescaledb` works too.)
+
+If no provider is installed, the history functions still return safely with `available: false` - they never break code execution mode.
+
+### Setup (on the SignalK server)
+
+1. In the SignalK admin web page, open **Appstore → Available** and install **signalk-to-influxdb** (plus an InfluxDB database for it to write to - many boat setups already run one).
+2. Turn the plugin on and let it record for a while so there is some history to query.
+3. Point this MCP server at that SignalK server the usual way (`SIGNALK_HOST` / `SIGNALK_PORT` / `SIGNALK_TLS`). If your server needs a login to read history, set `SIGNALK_TOKEN`.
+
+To check at any time whether history is turned on:
+
+```javascript
+(async () => {
+  const probe = await listHistoryContexts();
+  return JSON.stringify({ historyAvailable: probe.available });
+})()
+```
+
+### History SDK functions
+
+```javascript
+// Query recorded values for one or more paths over a time range
+const h = await getHistory({
+  paths: 'navigation.speedOverGround',  // a path, or an array of paths
+  from: '2026-06-11T06:00:00Z',         // ISO-8601; give "from" or "duration"
+  to:   '2026-06-11T12:00:00Z',         // ISO-8601 (optional, defaults to now)
+  resolution: 300                        // bucket size in SECONDS (300 = 5 min)
+});
+
+// Discover what is recorded
+const paths    = await listHistoryPaths();     // which paths have history
+const contexts = await listHistoryContexts();  // which vessels have history
+```
+
+**Good to know:**
+
+- **Times are ISO-8601** (like `2026-06-11T06:00:00Z`) and **`resolution` is in seconds**, not milliseconds.
+- Pick an **aggregation method per path** by adding it to the path: `'navigation.speedOverGround:max'` or `'environment.wind.speedApparent:sma:5'`. The default is `average` (and `first` for position).
+- `getHistory` returns `{ available, values, series, rowCount }`. `values` is grouped by path, so `values['navigation.speedOverGround']` is a list of `{ timestamp, value }`.
+- **Positions are `[longitude, latitude]` arrays** in history (the live API uses `{ latitude, longitude }`). `null` means there was no data in that bucket - drop nulls before averaging.
+- Always check **`available`** first. `available: false` means no history provider is installed on the server.
+
+### Sample use cases
+
+| Ask | What the code does in the isolate |
+|-----|-----------------------------------|
+| "How far did we sail today, and our average speed while moving?" | Adds up speed over time for distance; ignores time at the dock |
+| "How did the wind build this afternoon?" | Averages wind into short steps and reports the trend and biggest gust |
+| "Show this morning's track" | Pulls position history and thins it down to a handful of waypoints |
+| "How much did the batteries drain overnight?" | Totals battery current over the night into a simple energy summary |
+| "When will we need to refuel?" | Fits a line through tank-level history to estimate burn rate and days left |
+| "Any engine temperature spikes today?" | Scans engine-temp history for spikes and time at high RPM |
+| "What was the roughest weather in the last two days?" | Finds the peak wind and the barometer trend |
+| "The low-battery alarm just fired - what led up to it?" | Pulls the 30 minutes before the alarm and finds where the voltage dropped |
+
+### Example 5: Distance sailed today
+
+**Query:** "How far have we sailed today, and what's our average speed while moving?"
+
+**Code:**
+```javascript
+(async () => {
+  const h = await getHistory({
+    paths: 'navigation.speedOverGround',
+    from: '2026-06-11T00:00:00Z',
+    to:   '2026-06-11T23:59:59Z',
+    resolution: 60                       // 1-minute buckets
+  });
+  if (!h.available) return JSON.stringify({ note: h.error });
+
+  const points = h.values['navigation.speedOverGround'].filter(p => p.value != null);
+
+  let meters = 0, movingMinutes = 0;
+  for (const p of points) {
+    meters += p.value * 60;              // speed (m/s) over a 60s bucket
+    if (p.value > 0.26) movingMinutes++; // moving if faster than ~0.5 knots
+  }
+  const movingHours = movingMinutes / 60;
+
+  return JSON.stringify({
+    distanceNm: (meters / 1852).toFixed(1),
+    movingHours: movingHours.toFixed(1),
+    avgKnotsWhileMoving: movingHours
+      ? ((meters / (movingHours * 3600)) * 1.94384).toFixed(1)
+      : '0'
+  });
+})()
+```
+
+**Result:** A 3-number summary instead of ~1,400 raw speed readings.
+
+### Example 6: This morning's track
+
+**Query:** "Show me the route we took this morning."
+
+**Code:**
+```javascript
+(async () => {
+  const h = await getHistory({
+    paths: 'navigation.position',        // recorded as [longitude, latitude]
+    from: '2026-06-11T06:00:00Z',
+    to:   '2026-06-11T12:00:00Z',
+    resolution: 120                      // a fix every 2 minutes
+  });
+  if (!h.available) return JSON.stringify({ note: h.error });
+
+  const track = h.values['navigation.position']
+    .filter(p => p.value != null)
+    .map(p => ({ lon: p.value[0], lat: p.value[1], time: p.timestamp })); // [lon, lat]!
+
+  return JSON.stringify({
+    fixes: track.length,
+    start: track[0],
+    end: track[track.length - 1]
+  });
+})()
+```
+
+**Result:** A short list of waypoints instead of thousands of position fixes.
 
 ## Development
 
