@@ -16,6 +16,10 @@ export interface ActiveAlarm {
   state: string;
   message: string;
   timestamp?: string;
+  // alert methods the notification requests, e.g. ['visual', 'sound']
+  method?: string[];
+  // notification management status (silenced / acknowledged / canSilence / ...)
+  status?: Record<string, any>;
 }
 
 export interface VesselState {

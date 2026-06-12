@@ -750,6 +750,64 @@ describe('SignalKClient', () => {
       expect(alarms.alarms[0].state).toBe('alert');
     });
 
+    test('includes notification method[] and status{} when present', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            notifications: {
+              mob: {
+                value: {
+                  state: 'emergency',
+                  message: 'Man overboard',
+                  method: ['visual', 'sound'],
+                  status: {
+                    silenced: false,
+                    acknowledged: false,
+                    canSilence: true,
+                  },
+                },
+                timestamp: '2026-06-12T00:00:00.000Z',
+              },
+            },
+          }),
+      } as Response);
+
+      const alarms = await client.getActiveAlarms();
+
+      expect(alarms.alarms).toHaveLength(1);
+      const a = alarms.alarms[0];
+      expect(a.method).toEqual(['visual', 'sound']);
+      expect(a.status).toEqual({
+        silenced: false,
+        acknowledged: false,
+        canSilence: true,
+      });
+      // Backward compatible: the existing fields are unchanged.
+      expect(a.state).toBe('emergency');
+      expect(a.message).toBe('Man overboard');
+    });
+
+    test('omits method/status when the notification has neither', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            notifications: {
+              test: {
+                value: { state: 'alert', message: 'Test alarm' },
+                timestamp: '2026-06-12T00:00:00.000Z',
+              },
+            },
+          }),
+      } as Response);
+
+      const alarms = await client.getActiveAlarms();
+      const a = alarms.alarms[0];
+      expect(a.method).toBeUndefined();
+      expect(a.status).toBeUndefined();
+    });
+
     test('should return connection status correctly', () => {
       client.connected = true;
 
