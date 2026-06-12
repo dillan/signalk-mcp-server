@@ -116,7 +116,7 @@ describe('Tool Migration Tests', () => {
       data: {
         name: { value: 'Test Vessel' },
         'navigation.position': {
-          value: { latitude: 37.8199, longitude: -122.4783 },
+          value: { latitude: 38.9784, longitude: -76.4922 },
         },
         'navigation.speedOverGround': { value: 5.2 },
         'navigation.courseOverGroundTrue': { value: 1.57 },
@@ -222,8 +222,8 @@ describe('Tool Migration Tests', () => {
 
       // Should also have actual data
       expect(text).toContain('Test Vessel');
-      expect(text).toContain('37.8199');
-      expect(text).toContain('-122.4783');
+      expect(text).toContain('38.9784');
+      expect(text).toContain('-76.4922');
     });
 
     it('should have execute_code tool available in hybrid mode', () => {
@@ -336,7 +336,7 @@ describe('Tool Migration Tests', () => {
       // Simulate filtered result (just name and position)
       const filteredData = {
         name: 'Test Vessel',
-        position: { latitude: 37.8199, longitude: -122.4783 },
+        position: { latitude: 38.9784, longitude: -76.4922 },
       };
       const filteredText = JSON.stringify(filteredData, null, 2);
       const filteredSize = filteredText.length;

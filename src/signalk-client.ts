@@ -889,7 +889,7 @@ export class SignalKClient extends EventEmitter {
    * //     "timestamp": "2023-06-22T10:30:15Z",
    * //     "values": [{
    * //       "path": "navigation.position",
-   * //       "value": {"latitude": 37.8199, "longitude": -122.4783}
+   * //       "value": {"latitude": 38.9784, "longitude": -76.4922}
    * //     }]
    * //   }]
    * // }
@@ -945,7 +945,7 @@ export class SignalKClient extends EventEmitter {
    * // AIS targets are updated automatically from delta messages:
    * // Context: "vessels.urn:mrn:imo:mmsi:123456789"
    * // Path: "navigation.position"
-   * // Value: {"latitude": 37.8200, "longitude": -122.4800}
+   * // Value: {"latitude": 38.9785, "longitude": -76.4923}
    *
    * const targets = client.getAISTargets();
    * console.log('Nearby vessels:', targets.targets.length);
@@ -1054,7 +1054,7 @@ export class SignalKClient extends EventEmitter {
    * //       "source": "vessel-identity"
    * //     },
    * //     "navigation.position": {
-   * //       "value": {"latitude": 37.8199, "longitude": -122.4783},
+   * //       "value": {"latitude": 38.9784, "longitude": -76.4922},
    * //       "timestamp": "2023-06-22T10:30:15.000Z",
    * //       "source": {"label": "GPS1", "type": "NMEA0183"}
    * //     },
@@ -1237,7 +1237,7 @@ export class SignalKClient extends EventEmitter {
    * //       "mmsi": "123456789",
    * //       "distanceMeters": 1852.5,
    * //       "navigation.position": {
-   * //         "value": {"latitude": 37.8200, "longitude": -122.4800},
+   * //         "value": {"latitude": 38.9785, "longitude": -76.4923},
    * //         "timestamp": "2023-06-22T10:29:45.000Z"
    * //       },
    * //       "lastUpdate": "2023-06-22T10:29:45.000Z"
@@ -1662,8 +1662,8 @@ export class SignalKClient extends EventEmitter {
    * //   "timestamp": "2023-06-22T10:30:15.123Z",
    * //   "data": {
    * //     "value": {
-   * //       "latitude": 37.8199,
-   * //       "longitude": -122.4783
+   * //       "latitude": 38.9784,
+   * //       "longitude": -76.4922
    * //     },
    * //     "timestamp": "2023-06-22T10:30:15.000Z",
    * //     "source": {

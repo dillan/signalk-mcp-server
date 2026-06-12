@@ -176,8 +176,8 @@ describe('SignalKClient', () => {
         'vessels.self',
         'navigation.position',
         {
-          latitude: 37.8199,
-          longitude: -122.4783,
+          latitude: 38.9784,
+          longitude: -76.4922,
         },
       );
 
@@ -192,8 +192,8 @@ describe('SignalKClient', () => {
         'vessels.self.navigation.position',
       );
       expect(storedValue?.value).toEqual({
-        latitude: 37.8199,
-        longitude: -122.4783,
+        latitude: 38.9784,
+        longitude: -76.4922,
       });
     });
 
@@ -201,7 +201,7 @@ describe('SignalKClient', () => {
       const delta = global.testUtils.createSampleDelta(
         'vessels.urn:mrn:imo:mmsi:123456789',
         'navigation.position',
-        { latitude: 37.8299, longitude: -122.4683 },
+        { latitude: 38.9884, longitude: -76.4822 },
       );
 
       client.handleDelta(delta);
@@ -211,8 +211,8 @@ describe('SignalKClient', () => {
       const target = client.aisTargets.get('urn:mrn:imo:mmsi:123456789');
       expect(target?.mmsi).toBe('123456789'); // Now stores just the MMSI number
       expect(target?.['navigation.position']).toEqual({
-        latitude: 37.8299,
-        longitude: -122.4683,
+        latitude: 38.9884,
+        longitude: -76.4822,
       });
     });
 
@@ -316,7 +316,7 @@ describe('SignalKClient', () => {
 
       // Add some test data
       client.latestValues.set('vessels.self.navigation.position', {
-        value: { latitude: 37.8199, longitude: -122.4783 },
+        value: { latitude: 38.9784, longitude: -76.4922 },
         timestamp: '2025-06-21T10:00:00.000Z',
         source: { label: 'GPS1', type: 'NMEA0183' },
       });
@@ -345,7 +345,7 @@ describe('SignalKClient', () => {
           mmsi: '123456789',
           navigation: {
             position: {
-              value: { latitude: 37.8199, longitude: -122.4783 },
+              value: { latitude: 38.9784, longitude: -76.4922 },
               timestamp: '2025-06-21T10:00:00.000Z',
               source: { label: 'GPS1', type: 'NMEA0183' },
             },
@@ -359,8 +359,8 @@ describe('SignalKClient', () => {
       expect(state.context).toBe('vessels.self');
       expect(state.data['navigation.position']).toBeDefined();
       expect(state.data['navigation.position'].value).toEqual({
-        latitude: 37.8199,
-        longitude: -122.4783,
+        latitude: 38.9784,
+        longitude: -76.4922,
       });
       expect(state.data['name']).toBeDefined();
       expect(state.data['name'].value).toBe('Test Vessel');
@@ -373,7 +373,7 @@ describe('SignalKClient', () => {
         json: () => Promise.resolve({
           navigation: {
             position: {
-              value: { latitude: 37.8199, longitude: -122.4783 },
+              value: { latitude: 38.9784, longitude: -76.4922 },
               timestamp: '2025-06-21T10:00:00.000Z',
               source: { label: 'GPS1', type: 'NMEA0183' },
             },
@@ -412,7 +412,7 @@ describe('SignalKClient', () => {
         json: () => Promise.resolve({
           navigation: {
             position: {
-              value: { latitude: 37.81, longitude: -122.47 },
+              value: { latitude: 38.97, longitude: -76.49 },
               timestamp: currentTimestamp,
             },
           },
@@ -428,7 +428,7 @@ describe('SignalKClient', () => {
             name: 'Test Vessel',
             navigation: {
               position: {
-                value: { latitude: 37.82, longitude: -122.48 },
+                value: { latitude: 38.98, longitude: -76.50 },
                 timestamp: currentTimestamp,
               },
               speedOverGround: {
@@ -511,7 +511,7 @@ describe('SignalKClient', () => {
         json: () => Promise.resolve({
           navigation: {
             position: {
-              value: { latitude: 37.81, longitude: -122.47 },
+              value: { latitude: 38.97, longitude: -76.49 },
               timestamp: currentTimestamp,
             },
           },
@@ -526,7 +526,7 @@ describe('SignalKClient', () => {
           self: {
             navigation: {
               position: {
-                value: { latitude: 37.81, longitude: -122.47 },
+                value: { latitude: 38.97, longitude: -76.49 },
                 timestamp: currentTimestamp,
               },
             },
@@ -535,7 +535,7 @@ describe('SignalKClient', () => {
           'urn:mrn:imo:mmsi:338123456': {
             navigation: {
               position: {
-                value: { latitude: 37.81, longitude: -122.47 },
+                value: { latitude: 38.97, longitude: -76.49 },
                 timestamp: currentTimestamp,
               },
             },
@@ -543,7 +543,7 @@ describe('SignalKClient', () => {
           'urn:mrn:imo:mmsi:123456789': {
             navigation: {
               position: {
-                value: { latitude: 37.82, longitude: -122.48 },
+                value: { latitude: 38.98, longitude: -76.50 },
                 timestamp: currentTimestamp,
               },
             },
@@ -551,7 +551,7 @@ describe('SignalKClient', () => {
           'urn:mrn:signalk:uuid:some-uuid': {
             navigation: {
               position: {
-                value: { latitude: 37.83, longitude: -122.49 },
+                value: { latitude: 38.99, longitude: -76.51 },
                 timestamp: currentTimestamp,
               },
             },
@@ -578,7 +578,7 @@ describe('SignalKClient', () => {
         json: () => Promise.resolve({
           navigation: {
             position: {
-              value: { latitude: 37.81, longitude: -122.47 },
+              value: { latitude: 38.97, longitude: -76.49 },
               timestamp: recentTimestamp,
             },
           },
@@ -593,7 +593,7 @@ describe('SignalKClient', () => {
           'urn:mrn:imo:mmsi:987654321': {
             navigation: {
               position: {
-                value: { latitude: 37.82, longitude: -122.48 },
+                value: { latitude: 38.98, longitude: -76.50 },
                 timestamp: oldTimestamp,
               },
             },
@@ -601,7 +601,7 @@ describe('SignalKClient', () => {
           'urn:mrn:imo:mmsi:123456789': {
             navigation: {
               position: {
-                value: { latitude: 37.83, longitude: -122.49 },
+                value: { latitude: 38.99, longitude: -76.51 },
                 timestamp: recentTimestamp,
               },
             },
@@ -625,7 +625,7 @@ describe('SignalKClient', () => {
         json: () => Promise.resolve({
           navigation: {
             position: {
-              value: { latitude: 37.81, longitude: -122.47 },
+              value: { latitude: 38.97, longitude: -76.49 },
               timestamp: currentTimestamp,
             },
           },
@@ -638,7 +638,7 @@ describe('SignalKClient', () => {
         vesselsData[`urn:mrn:imo:mmsi:${i.toString().padStart(9, '0')}`] = {
           navigation: {
             position: {
-              value: { latitude: 37.81 + i * 0.001, longitude: -122.47 + i * 0.001 },
+              value: { latitude: 38.97 + i * 0.001, longitude: -76.49 + i * 0.001 },
               timestamp: currentTimestamp,
             },
           },
@@ -665,7 +665,7 @@ describe('SignalKClient', () => {
         json: () => Promise.resolve({
           navigation: {
             position: {
-              value: { latitude: 37.81, longitude: -122.47 },
+              value: { latitude: 38.97, longitude: -76.49 },
               timestamp: currentTimestamp,
             },
           },
@@ -692,7 +692,7 @@ describe('SignalKClient', () => {
         json: () => Promise.resolve({
           navigation: {
             position: {
-              value: { latitude: 37.81, longitude: -122.47 },
+              value: { latitude: 38.97, longitude: -76.49 },
               timestamp: currentTimestamp,
             },
           },
@@ -708,7 +708,7 @@ describe('SignalKClient', () => {
             navigation: {
               position: {
                 // Approximately 1.57km away
-                value: { latitude: 37.82, longitude: -122.48 },
+                value: { latitude: 38.98, longitude: -76.50 },
                 timestamp: currentTimestamp,
               },
             },
@@ -773,7 +773,7 @@ describe('SignalKClient', () => {
     test('should fetch available paths via HTTP successfully', async () => {
       const mockResponse = {
         'navigation.position': {
-          value: { latitude: 37.8199, longitude: -122.4783 },
+          value: { latitude: 38.9784, longitude: -76.4922 },
         },
         'navigation.speedOverGround': { value: 5.2 },
         environment: {
@@ -841,7 +841,7 @@ describe('SignalKClient', () => {
     test('should use cached data when HTTP fails', async () => {
       // Set up cached data
       client.latestValues.set('vessels.self.navigation.position', {
-        value: { latitude: 37.8199, longitude: -122.4783 },
+        value: { latitude: 38.9784, longitude: -76.4922 },
         timestamp: '2025-06-21T10:00:00.000Z',
       });
 
@@ -851,8 +851,8 @@ describe('SignalKClient', () => {
 
       expect(result.error).toContain('HTTP fetch failed');
       expect(result.data.value).toEqual({
-        latitude: 37.8199,
-        longitude: -122.4783,
+        latitude: 38.9784,
+        longitude: -76.4922,
       });
     });
   });
@@ -1046,7 +1046,7 @@ describe('SignalKClient', () => {
             values: [
               {
                 path: 'navigation.position',
-                value: { latitude: 37.8199, longitude: -122.4783 },
+                value: { latitude: 38.9784, longitude: -76.4922 },
               },
             ],
           },
@@ -1261,7 +1261,7 @@ describe('SignalKClient', () => {
         json: () => Promise.resolve({
           navigation: {
             position: {
-              value: { latitude: 37.8199, longitude: -122.4783 },
+              value: { latitude: 38.9784, longitude: -76.4922 },
               timestamp: '2023-06-22T10:30:15.000Z',
             },
             speedOverGround: {
@@ -1316,8 +1316,8 @@ describe('SignalKClient', () => {
         'vessels.self.navigation.position',
       );
       expect(position?.value).toEqual({
-        latitude: 37.8199,
-        longitude: -122.4783,
+        latitude: 38.9784,
+        longitude: -76.4922,
       });
 
       expect(client.availablePaths.has('navigation.position')).toBe(true);
@@ -1644,7 +1644,7 @@ describe('SignalKClient', () => {
       client.updateAISTarget(
         vesselContext,
         'navigation.position',
-        { latitude: 37.8199, longitude: -122.4783 },
+        { latitude: 38.9784, longitude: -76.4922 },
         '2023-06-22T10:30:15.000Z',
       );
 
@@ -1652,8 +1652,8 @@ describe('SignalKClient', () => {
       const target = client.aisTargets.get(vesselId);
       expect(target).toBeDefined();
       expect(target?.['navigation.position']).toEqual({
-        latitude: 37.8199,
-        longitude: -122.4783,
+        latitude: 38.9784,
+        longitude: -76.4922,
       });
       expect(target?.lastUpdate).toBe('2023-06-22T10:30:15.000Z');
     });
@@ -1811,7 +1811,7 @@ describe('SignalKClient', () => {
             values: [
               {
                 path: 'navigation.position',
-                value: { latitude: 37.8199, longitude: -122.4783 },
+                value: { latitude: 38.9784, longitude: -76.4922 },
               },
             ],
           },
@@ -1865,7 +1865,7 @@ describe('SignalKClient', () => {
     test('should handle getPathValue with cached data fallback (line 705, 715)', async () => {
       // Add cached data
       client.latestValues.set('vessels.self.navigation.position', {
-        value: { latitude: 37.8199, longitude: -122.4783 },
+        value: { latitude: 38.9784, longitude: -76.4922 },
         timestamp: '2023-06-22T10:30:15.000Z',
         source: { label: 'GPS1', type: 'NMEA0183' },
       });
@@ -1883,8 +1883,8 @@ describe('SignalKClient', () => {
       // Verify cached data is returned (covers line 715)
       expect(result.data).toBeDefined();
       expect(result.data!.value).toEqual({
-        latitude: 37.8199,
-        longitude: -122.4783,
+        latitude: 38.9784,
+        longitude: -76.4922,
       });
       expect(result.error).toContain(
         'HTTP fetch failed: Network failure, using cached value',
@@ -2409,8 +2409,8 @@ describe('SignalKClient', () => {
         { path: 'navigation.position', method: 'first' },
       ],
       data: [
-        ['2026-06-11T06:00:00.000Z', 3.14, [-122.47, 37.81]],
-        ['2026-06-11T06:05:00.000Z', 0, [-122.48, 37.82]],
+        ['2026-06-11T06:00:00.000Z', 3.14, [-76.49, 38.97]],
+        ['2026-06-11T06:05:00.000Z', 0, [-76.50, 38.98]],
         ['2026-06-11T06:10:00.000Z', null, null],
       ],
     };
@@ -2459,7 +2459,7 @@ describe('SignalKClient', () => {
         const sog = h.values['navigation.speedOverGround'];
         expect(sog.map((p) => p.value)).toEqual([3.14, 0, null]); // 0 kept, null strict
         const pos = h.values['navigation.position'];
-        expect(pos[0].value).toEqual([-122.47, 37.81]); // array passthrough
+        expect(pos[0].value).toEqual([-76.49, 38.97]); // array passthrough
         expect(pos[2].value).toBeNull();
         expect(h.series).toHaveLength(2);
         expect(h.series[1].method).toBe('first');

@@ -54,7 +54,7 @@ global.testUtils = {
   createSampleDelta: (
     context = 'vessels.self',
     path = 'navigation.position',
-    value = { latitude: 37.8199, longitude: -122.4783 },
+    value = { latitude: 38.9784, longitude: -76.4922 },
   ) => ({
     context,
     updates: [
