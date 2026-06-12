@@ -34,7 +34,8 @@ You need three things:
 
 ### Your SignalK connection details
 
-You give these to the assistant as environment variables. Change the example
+You give these to the assistant as settings. In the config files further down
+they go in a section called `env` (short for "environment"). Change the example
 values to match your own server.
 
 | Setting | What it is | Example |
@@ -58,13 +59,19 @@ that. The only difference between assistants is **which file** they read and
 **what they call the section** that holds the server. Each guide gives you the
 exact file and the exact text.
 
-## Web assistants (the ChatGPT and Claude.ai websites)
+## Web and cloud assistants (ChatGPT, the Claude.ai website)
 
-These can't connect yet, and that's a real limit, not a missing setup step. A
-website can only reach a server that is published on the public internet over a
-secure (HTTPS) address. This server is built to run on your own machine and talk
-over a local connection, so a website has no way to reach it. Use one of the
-desktop or command-line assistants above instead.
+Some assistants can't connect yet, and that's a real limit, not a missing setup
+step. They can only reach a server that is published on the public internet over
+a secure (HTTPS) address. This server is built to run on your own machine and
+talk over a local connection, so they have no way to reach it. This applies to:
+
+- **ChatGPT** — both the website and the desktop app only connect to servers on
+  the internet, not to one running on your own computer.
+- **The Claude.ai website.** The **Claude desktop app is different** and _can_
+  run this local server — see the [Claude Desktop guide](claude-desktop.md).
+
+For everything else, use one of the desktop or command-line assistants above.
 
 ## If something doesn't work
 

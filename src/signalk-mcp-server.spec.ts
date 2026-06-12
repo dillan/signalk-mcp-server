@@ -292,21 +292,26 @@ describe('SignalKMCPServer', () => {
 
     test('every read tool carries readOnlyHint:true', async () => {
       new SignalKMCPServer({ executionMode: 'tools' });
-      const listToolsHandler = mockServer.setRequestHandler.mock
-        .calls[0][1] as () => any;
+      const listToolsHandler = mockServer.setRequestHandler.mock.calls.find(
+        (call: any[]) => call[0] === 'ListToolsRequestSchema',
+      )?.[1] as () => any;
       const result = await listToolsHandler();
+      expect(result.tools.length).toBeGreaterThan(0);
       for (const tool of result.tools) {
         expect(tool.annotations?.readOnlyHint).toBe(true);
       }
     });
 
-    test('execute_code is annotated not-read-only and open-world', async () => {
+    test('execute_code is annotated not-read-only, non-destructive, open-world', async () => {
       new SignalKMCPServer({ executionMode: 'hybrid' });
-      const listToolsHandler = mockServer.setRequestHandler.mock
-        .calls[0][1] as () => any;
+      const listToolsHandler = mockServer.setRequestHandler.mock.calls.find(
+        (call: any[]) => call[0] === 'ListToolsRequestSchema',
+      )?.[1] as () => any;
       const result = await listToolsHandler();
       const ec = result.tools.find((t: any) => t.name === 'execute_code');
+      expect(ec).toBeDefined();
       expect(ec.annotations.readOnlyHint).toBe(false);
+      expect(ec.annotations.destructiveHint).toBe(false);
       expect(ec.annotations.openWorldHint).toBe(true);
     });
   });

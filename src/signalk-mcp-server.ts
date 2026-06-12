@@ -251,7 +251,11 @@ export class SignalKMCPServer {
     name: string;
     description: string;
     inputSchema: any;
-    annotations?: { readOnlyHint?: boolean; openWorldHint?: boolean };
+    annotations?: {
+      readOnlyHint?: boolean;
+      destructiveHint?: boolean;
+      openWorldHint?: boolean;
+    };
   }> {
     return [
       {
@@ -473,9 +477,15 @@ export class SignalKMCPServer {
           },
           // execute_code runs caller-supplied JavaScript. The SignalK binding it
           // exposes is read-only, but arbitrary code is something a client should
-          // approve rather than auto-run, so readOnlyHint is false. It reaches an
-          // external SignalK server, so openWorldHint is true.
-          annotations: { readOnlyHint: false, openWorldHint: true },
+          // approve rather than auto-run, so readOnlyHint is false. The binding
+          // has no write or delete methods, so destructiveHint is false — without
+          // it, the spec defaults destructiveHint to true once readOnlyHint is
+          // false. It reaches an external SignalK server, so openWorldHint is true.
+          annotations: {
+            readOnlyHint: false,
+            destructiveHint: false,
+            openWorldHint: true,
+          },
         });
       }
 

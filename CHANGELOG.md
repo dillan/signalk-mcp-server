@@ -5,6 +5,23 @@ All notable changes to the SignalK MCP Server project will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Setup guides for connecting nine MCP clients under `docs/clients/`: Claude
+  Code, Claude Desktop, Codex, Gemini CLI, Cursor, VS Code (GitHub Copilot),
+  Windsurf, Cline, and Zed. Each is plain-language and copy-paste friendly, with
+  a shared checklist (requirements, connection settings, troubleshooting) and an
+  honest note about which web/cloud assistants can't connect yet.
+- MCP tool annotations on the tool list. The read tools advertise
+  `readOnlyHint: true`; `execute_code` advertises `readOnlyHint: false`,
+  `destructiveHint: false`, and `openWorldHint: true`, so a client can show the
+  right consent prompt (auto-run a safe read, ask before running code).
+
+### Changed
+- The README now links to a per-client setup guide from a table instead of
+  documenting only Claude Desktop.
+
 ## [1.0.8] - 2025-11-26
 
 ### Fixed
