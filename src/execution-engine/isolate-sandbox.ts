@@ -1,4 +1,22 @@
-import ivm from 'isolated-vm';
+/**
+ * Lazily loads the optional native `isolated-vm` addon.
+ *
+ * isolated-vm is a native module that must be compiled for the running Node ABI
+ * and does not ship a prebuilt binary for every Node version (notably it fails
+ * to build on Node 25). It is declared in `optionalDependencies` and imported
+ * dynamically so that importing this module — or constructing IsolateSandbox —
+ * never loads the addon. The addon is resolved only when code is actually
+ * executed, and a load failure degrades gracefully (see `execute`) instead of
+ * crashing the MCP server at startup.
+ */
+let ivmModule: any = null;
+async function loadIvm(): Promise<any> {
+  if (!ivmModule) {
+    const mod: any = await import('isolated-vm');
+    ivmModule = mod?.default ?? mod;
+  }
+  return ivmModule;
+}
 
 /**
  * Result of code execution in V8 isolate
@@ -87,7 +105,27 @@ export class IsolateSandbox {
     const startTime = Date.now();
     const logs: string[] = [];
 
-    let isolate: ivm.Isolate | null = null;
+    // Lazily load the optional native addon. If it cannot be loaded (e.g. there
+    // is no isolated-vm build for the running Node.js version), degrade
+    // gracefully so the MCP server keeps serving instead of crashing.
+    let ivm: any;
+    try {
+      ivm = await loadIvm();
+    } catch (error: any) {
+      return {
+        success: false,
+        error:
+          'Code execution engine (isolated-vm) is unavailable in this runtime. ' +
+          'isolated-vm is an optional native addon that must be built for the ' +
+          'running Node.js version; run the server under a Node.js version with ' +
+          'a working isolated-vm build (e.g. Node 22 LTS) to enable execute_code. ' +
+          `Underlying error: ${error?.message || String(error)}`,
+        logs,
+        executionTime: Date.now() - startTime,
+      };
+    }
+
+    let isolate: any = null;
 
     try {
       // Create fresh V8 isolate with memory limit
@@ -117,7 +155,7 @@ export class IsolateSandbox {
 
       // Inject bindings (RPC-style access to external systems)
       for (const [name, binding] of Object.entries(bindings)) {
-        await this.injectBinding(context, name, binding);
+        await this.injectBinding(ivm, context, name, binding);
       }
 
       // Execute code with timeout
@@ -160,7 +198,8 @@ export class IsolateSandbox {
    * @private
    */
   private async injectBinding(
-    context: ivm.Context,
+    ivm: any,
+    context: any,
     name: string,
     binding: any
   ): Promise<void> {
