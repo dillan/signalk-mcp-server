@@ -12,6 +12,12 @@ import type {
   ConnectionStatus,
   AvailablePathsResponse,
   PathValueResponse,
+  HistoryQueryOptions,
+  HistoryResponse,
+  HistorySeries,
+  HistoryDataPoint,
+  HistoryPathsResponse,
+  HistoryContextsResponse,
 } from './types/index.js';
 
 export class SignalKClient extends EventEmitter {
@@ -1257,6 +1263,295 @@ export class SignalKClient extends EventEmitter {
         timestamp: new Date().toISOString(),
         error: `HTTP fetch failed: ${error.message}, using cached value`,
       };
+    }
+  }
+
+  /**
+   * Query aggregated historical time-series for one or more SignalK paths.
+   *
+   * Hits the SignalK v2 History API (/signalk/v2/api/history/values) and folds
+   * its tabular response into per-path series. Unlike getPathValue there is NO
+   * cache fallback - history has no live cache. The method never throws; it
+   * always returns a HistoryResponse whose `available` flag tells callers
+   * whether a history provider answered.
+   *
+   * @param options - paths plus a time window (from/to or duration), resolution
+   *                  in SECONDS, optional default aggregate, and context
+   * @returns HistoryResponse with `series` (one entry per response column) and a
+   *          convenience `values` map keyed by path
+   */
+  async getHistory(options: HistoryQueryOptions): Promise<HistoryResponse> {
+    // Normalize and coerce paths to strings up front so stray non-string input
+    // from untyped isolate code can never throw before the request is built.
+    const rawPaths = Array.isArray(options?.paths) ? options.paths : [options?.paths];
+    const requestedPaths = rawPaths
+      .filter((p) => p !== undefined && p !== null)
+      .map((p) => String(p));
+
+    const empty = (available: boolean, error?: string): HistoryResponse => ({
+      available,
+      connected: this.connected,
+      resolution: options?.resolution,
+      requestedPaths,
+      series: [],
+      values: {},
+      missingPaths: requestedPaths.map((p) => p.split(':')[0]),
+      timestamp: new Date().toISOString(),
+      ...(error ? { error } : {}),
+    });
+
+    if (requestedPaths.length === 0) {
+      return empty(true, 'Invalid history query: at least one path is required');
+    }
+
+    // Validate the time window. The server requires at least one of `from` or
+    // `duration`; a missing/`to`-only window or a non-ISO time is a client
+    // error, reported distinctly from a missing provider and without a request.
+    const from = this.normalizeIso(options.from);
+    if (options.from !== undefined && from === undefined) {
+      return empty(true, 'Invalid history query: "from" must be an ISO-8601 time (e.g. 2026-06-11T06:00:00Z)');
+    }
+    const to = this.normalizeIso(options.to);
+    if (options.to !== undefined && to === undefined) {
+      return empty(true, 'Invalid history query: "to" must be an ISO-8601 time (e.g. 2026-06-11T12:00:00Z)');
+    }
+    const duration = options.duration !== undefined ? String(options.duration) : undefined;
+    if (from === undefined && duration === undefined) {
+      return empty(true, 'Invalid history query: provide "from" or "duration"');
+    }
+
+    const pathsParam = requestedPaths
+      .map((p) => this.composeHistoryPath(p, options.aggregate))
+      .join(',');
+
+    const url = this.buildHistoryApiUrl('values', {
+      context: options.context ?? this.context,
+      paths: pathsParam,
+      from,
+      to,
+      duration,
+      resolution: options.resolution,
+      provider: options.provider,
+    });
+
+    try {
+      const response = await fetch(url, this.buildFetchOptions());
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        const { available, error } = this.classifyHistoryFailure(response.status, detail.slice(0, 200));
+        return empty(available, error);
+      }
+      const body: any = await response.json();
+      return this.transformHistoryValues(body, requestedPaths, options.resolution);
+    } catch (error: any) {
+      console.error('Failed to fetch history values via HTTP:', error.message);
+      const { available, error: message } = this.classifyHistoryFailure(undefined, error?.message || String(error));
+      return empty(available, message);
+    }
+  }
+
+  /**
+   * List SignalK paths that have historical data in a time window.
+   * @returns HistoryPathsResponse; `available:false` means no history provider
+   */
+  async listHistoryPaths(
+    options: { from?: string; to?: string; duration?: string | number; context?: string } = {},
+  ): Promise<HistoryPathsResponse> {
+    const r = await this.fetchHistoryStringList('paths', options);
+    return {
+      available: r.available,
+      connected: this.connected,
+      count: r.items.length,
+      paths: r.items,
+      timestamp: new Date().toISOString(),
+      ...(r.error ? { error: r.error } : {}),
+    };
+  }
+
+  /**
+   * List vessel contexts that have historical data in a time window.
+   * @returns HistoryContextsResponse; `available:false` means no history provider
+   */
+  async listHistoryContexts(
+    options: { from?: string; to?: string; duration?: string | number } = {},
+  ): Promise<HistoryContextsResponse> {
+    const r = await this.fetchHistoryStringList('contexts', options);
+    return {
+      available: r.available,
+      connected: this.connected,
+      count: r.items.length,
+      contexts: r.items,
+      timestamp: new Date().toISOString(),
+      ...(r.error ? { error: r.error } : {}),
+    };
+  }
+
+  /**
+   * Build one entry of the comma-separated `paths` param. A path may already
+   * carry an inline aggregation method (path:method[:param]); if so it is left
+   * untouched. Otherwise an optional default `aggregate` is applied - but never
+   * to navigation.position (the server aggregates positions with "first").
+   */
+  private composeHistoryPath(pathExpr: string, aggregate?: string): string {
+    const hasInlineMethod = pathExpr.split(':').length >= 2;
+    if (hasInlineMethod || !aggregate) {
+      return pathExpr;
+    }
+    if (pathExpr === 'navigation.position') {
+      return pathExpr;
+    }
+    return `${pathExpr}:${aggregate}`;
+  }
+
+  /**
+   * Coerce a time input to an ISO-8601 string. Accepts a Date or epoch-ms
+   * number; passes a valid ISO-ish string through; returns undefined for input
+   * that cannot be a real instant (so the caller can report a clear error).
+   */
+  private normalizeIso(value: unknown): string | undefined {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? undefined : value.toISOString();
+    }
+    if (typeof value === 'number') {
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? undefined : d.toISOString();
+    }
+    if (typeof value === 'string') {
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? undefined : value;
+    }
+    return undefined;
+  }
+
+  /**
+   * Map an HTTP status (or network error) to history availability + message.
+   * 404/501 or a network error means no provider is installed (available:false).
+   * 400/422 means the provider exists but the request was bad (available:true).
+   * 401/403 means the provider exists but needs auth (available:true).
+   */
+  private classifyHistoryFailure(
+    status: number | undefined,
+    detail: string,
+  ): { available: boolean; error: string } {
+    const suffix = detail ? `: ${detail}` : '';
+    if (status === 404 || status === 501) {
+      return {
+        available: false,
+        error: `History API not available - no history provider installed on the SignalK server (HTTP ${status})`,
+      };
+    }
+    if (status === 400 || status === 422) {
+      return { available: true, error: `Invalid history query (HTTP ${status})${suffix}` };
+    }
+    if (status === 401 || status === 403) {
+      return {
+        available: true,
+        error: `History API requires authentication - set SIGNALK_TOKEN (HTTP ${status})`,
+      };
+    }
+    return {
+      available: false,
+      error: `History API request failed${status ? ` (HTTP ${status})` : ''}${suffix}`,
+    };
+  }
+
+  /**
+   * Convert the server's tabular history response into per-path series. The
+   * response `values` array is authoritative: column i+1 of each data row maps
+   * to values[i].path. We iterate the response columns (never the request) so
+   * reordered, duplicate, or absent paths are handled correctly.
+   */
+  private transformHistoryValues(
+    body: any,
+    requestedPaths: string[],
+    resolution?: number,
+  ): HistoryResponse {
+    const columns: Array<{ path: string; method: string }> = Array.isArray(body?.values)
+      ? body.values
+      : [];
+    const rows: any[][] = Array.isArray(body?.data) ? body.data : [];
+
+    const series: HistorySeries[] = columns.map((col, i) => ({
+      path: col?.path,
+      method: col?.method,
+      points: rows.map(
+        (row): HistoryDataPoint => ({
+          timestamp: row?.[0],
+          value: row?.[i + 1] ?? null,
+        }),
+      ),
+    }));
+
+    // Convenience map keyed by path; the last method wins on duplicate paths
+    // (use `series` to keep every column).
+    const values: Record<string, HistoryDataPoint[]> = {};
+    for (const s of series) {
+      values[s.path] = s.points;
+    }
+
+    const returnedPaths = new Set(columns.map((c) => c?.path));
+    const missingPaths = requestedPaths
+      .map((p) => p.split(':')[0])
+      .filter((p) => !returnedPaths.has(p));
+
+    return {
+      available: true,
+      connected: this.connected,
+      context: body?.context,
+      range: body?.range,
+      resolution,
+      requestedPaths,
+      series,
+      values,
+      missingPaths,
+      rowCount: rows.length,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Shared fetch + degradation handling for the history list endpoints
+   * (paths/contexts), which both return a JSON array of strings.
+   */
+  private async fetchHistoryStringList(
+    endpoint: 'paths' | 'contexts',
+    options: { from?: string; to?: string; duration?: string | number; context?: string },
+  ): Promise<{ available: boolean; items: string[]; error?: string }> {
+    const from = this.normalizeIso(options.from);
+    const to = this.normalizeIso(options.to);
+    // The list endpoints scope to a time window; default to the last 24h when
+    // the caller gives neither `from` nor `duration` so the result is not empty.
+    const duration =
+      options.duration !== undefined
+        ? String(options.duration)
+        : from === undefined
+          ? 'PT24H'
+          : undefined;
+
+    const url = this.buildHistoryApiUrl(endpoint, {
+      context: options.context,
+      from,
+      to,
+      duration,
+    });
+
+    try {
+      const response = await fetch(url, this.buildFetchOptions());
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        const { available, error } = this.classifyHistoryFailure(response.status, detail.slice(0, 200));
+        return { available, items: [], error };
+      }
+      const body: any = await response.json();
+      const items: string[] = Array.isArray(body) ? body : [];
+      return { available: true, items };
+    } catch (error: any) {
+      console.error(`Failed to fetch history ${endpoint} via HTTP:`, error.message);
+      const { available, error: message } = this.classifyHistoryFailure(undefined, error?.message || String(error));
+      return { available, items: [], error: message };
     }
   }
 
