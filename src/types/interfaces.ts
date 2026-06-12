@@ -255,7 +255,8 @@ export interface ServerFeaturesResponse {
 export interface ResourcesQueryOptions {
   // which resource collection to read
   type: 'waypoints' | 'routes' | 'regions' | 'notes' | 'charts';
-  // max records to return (charts has no limit param; notes default to 50)
+  // max records to return (charts has no limit param; the other types default
+  // to 50 when omitted)
   limit?: number;
   // square-area filter in metres (>= 100), centred on the vessel position or
   // an explicit `position`; the server auto-centres on self. Charts: ignored.

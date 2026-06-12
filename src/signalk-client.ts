@@ -689,17 +689,108 @@ export class SignalKClient extends EventEmitter {
    * the raw keyed object the server returns and may contain user content.
    */
   async getResources(options: ResourcesQueryOptions): Promise<ResourcesResponse> {
-    // STUB - real implementation follows in the next commit.
-    await Promise.resolve();
-    return {
+    const now = () => new Date().toISOString();
+    const type = options?.type;
+    const degraded = (reason: string, error?: string): ResourcesResponse => ({
       available: false,
       connected: this.connected,
-      type: options?.type || '',
+      type: type || '',
       count: 0,
       resources: {},
-      timestamp: new Date().toISOString(),
-      reason: 'not implemented',
-    };
+      timestamp: now(),
+      reason,
+      ...(error ? { error } : {}),
+    });
+
+    const ALLOWED = ['waypoints', 'routes', 'regions', 'notes', 'charts'];
+    if (!type || !ALLOWED.includes(type)) {
+      return degraded(
+        'invalid_type',
+        `Unknown resource type '${type}'. Use one of: ${ALLOWED.join(', ')}`,
+      );
+    }
+
+    // Build the per-type query. Charts accept only `provider`; the other types
+    // accept the geo filters. We do NOT inject the vessel position - the server
+    // already centres a `distance` filter on self when no position is given.
+    const params: Record<string, string | number | undefined> = {};
+    if (options.provider) {
+      params.provider = options.provider;
+    }
+    if (type !== 'charts') {
+      // Default a limit so a large collection can't blow up the response or an
+      // LLM's context window; callers wanting everything pass an explicit limit.
+      let limit = options.limit;
+      if (typeof limit !== 'number' || !Number.isFinite(limit) || limit <= 0) {
+        limit = 50;
+      }
+      params.limit = Math.trunc(limit);
+      // distance is an integer >= 100 metres; drop anything smaller to avoid a
+      // server-side 400.
+      if (typeof options.distance === 'number' && options.distance >= 100) {
+        params.distance = Math.trunc(options.distance);
+      }
+      if (
+        Array.isArray(options.bbox) &&
+        options.bbox.length === 4 &&
+        options.bbox.every((n) => Number.isFinite(n))
+      ) {
+        params.bbox = options.bbox.join(',');
+      }
+      if (
+        Array.isArray(options.position) &&
+        options.position.length === 2 &&
+        options.position.every((n) => Number.isFinite(n))
+      ) {
+        params.position = options.position.join(',');
+      }
+      if (typeof options.zoom === 'number' && Number.isFinite(options.zoom)) {
+        params.zoom = Math.trunc(options.zoom);
+      }
+      // href filters notes by a referenced resource; it is notes-only.
+      if (type === 'notes' && options.href) {
+        params.href = options.href;
+      }
+    }
+
+    try {
+      const response = await this.fetchJson(
+        this.buildResourcesApiUrl(type, params),
+      );
+      if (!response.ok) {
+        const s = response.status;
+        const reason =
+          s === 404 || s === 501
+            ? 'no_provider'
+            : s === 401 || s === 403
+              ? 'auth'
+              : 'error';
+        const error =
+          s === 404 || s === 501
+            ? `No resources provider for '${type}' (HTTP ${s})`
+            : s === 401 || s === 403
+              ? `Resources require authentication - set SIGNALK_TOKEN (HTTP ${s})`
+              : `Resources request failed (HTTP ${s})`;
+        return degraded(reason, error);
+      }
+      const body: any = await response.json();
+      const resources =
+        body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+      return {
+        available: true,
+        connected: this.connected,
+        type,
+        count: Object.keys(resources).length,
+        resources,
+        timestamp: now(),
+      };
+    } catch (error: any) {
+      console.error('Failed to fetch resources via HTTP:', error.message);
+      return degraded(
+        'error',
+        `Resources request failed: ${error?.message || String(error)}`,
+      );
+    }
   }
 
   /**

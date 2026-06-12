@@ -621,7 +621,7 @@ export class SignalKMCPServer {
             limit: {
               type: 'number',
               description:
-                'Max records (not supported for charts; notes default to 50)',
+                'Max records (not supported for charts; the other types default to 50)',
             },
             distance: {
               type: 'number',

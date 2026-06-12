@@ -125,6 +125,13 @@
         "parameters": "options (all optional): { latitude, longitude } to query elsewhere; provider.",
         "returns": "{ available, kind:'warnings', position, provider, data, count }. data is the list of warnings (each { startTime, endTime, source, type, details }); count 0 means none. available:false with reason:'no vessel position' when there is no fix.",
         "example": "(async () => {\n  const w = await getWeatherWarnings();\n  if (!w.available) return JSON.stringify({ note: w.reason || w.error });\n  return JSON.stringify({ count: w.count, warnings: w.data.map(x => x.type) });\n})()"
+      },
+      "getResources": {
+        "signature": "await getResources({ type, limit, distance, bbox, position, zoom, provider, href })",
+        "description": "Read a resources collection: type is 'waypoints' | 'routes' | 'regions' | 'notes' | 'charts'. Server-side filters: limit (not charts; defaults to 50 when omitted - pass a larger limit to get everything); for all except charts a distance (metres, >=100, the server centres it on the vessel position) / bbox [lon1,lat1,lon2,lat2] / position [lon,lat] / zoom; notes also accept href; charts accept only provider. PRIVACY: resources are raw user content (names, coordinates, note text) - filter in the isolate and be careful echoing them back to the model.",
+        "parameters": "type (required). limit, distance, bbox, position, zoom apply to waypoints/routes/regions/notes (NOT charts); href applies to notes only; provider applies to all.",
+        "returns": "{ available, type, count, resources }. resources is the raw object keyed by resource id. available:false with reason ('invalid_type' | 'no_provider' | 'auth' | 'error') when unavailable.",
+        "example": "(async () => {\n  const r = await getResources({ type: 'waypoints', distance: 5000 });\n  if (!r.available) return JSON.stringify({ note: r.reason || r.error });\n  const names = Object.values(r.resources).map(w => w.name).filter(Boolean);\n  return JSON.stringify({ count: r.count, names });\n})()"
       }
     }
   },

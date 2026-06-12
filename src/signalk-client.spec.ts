@@ -2659,6 +2659,55 @@ describe('SignalKClient', () => {
       expect(r.reason).toBe('no_provider');
     });
 
+    test('501 => available:false (no provider)', async () => {
+      mockFetch.mockResolvedValueOnce(err(501));
+      const r = await client.getResources({ type: 'routes' });
+      expect(r.available).toBe(false);
+      expect(r.reason).toBe('no_provider');
+    });
+
+    test('401 => available:false (auth)', async () => {
+      mockFetch.mockResolvedValueOnce(err(401));
+      const r = await client.getResources({ type: 'waypoints' });
+      expect(r.available).toBe(false);
+      expect(r.reason).toBe('auth');
+    });
+
+    test('non-object body => available:true with empty resources', async () => {
+      mockFetch.mockResolvedValueOnce(ok([1, 2, 3]));
+      const r = await client.getResources({ type: 'waypoints' });
+      expect(r.available).toBe(true);
+      expect(r.resources).toEqual({});
+      expect(r.count).toBe(0);
+    });
+
+    test('defaults limit to 50 for non-chart types; an explicit limit wins', async () => {
+      mockFetch.mockResolvedValueOnce(ok(waypointsBody));
+      await client.getResources({ type: 'waypoints' });
+      expect(decodeURIComponent(mockFetch.mock.calls[0][0] as string)).toContain(
+        'limit=50',
+      );
+
+      mockFetch.mockResolvedValueOnce(ok(waypointsBody));
+      await client.getResources({ type: 'waypoints', limit: 500 });
+      expect(decodeURIComponent(mockFetch.mock.calls[1][0] as string)).toContain(
+        'limit=500',
+      );
+    });
+
+    test('distance exactly 100 is sent; a malformed bbox is dropped', async () => {
+      mockFetch.mockResolvedValueOnce(ok(waypointsBody));
+      await client.getResources({
+        type: 'routes',
+        distance: 100,
+        // wrong length and a NaN - must be dropped, not serialized
+        bbox: [1, 2, 3] as any,
+      });
+      const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+      expect(url).toContain('distance=100');
+      expect(url).not.toContain('bbox=');
+    });
+
     test('network error => available:false, no throw', async () => {
       mockFetch.mockRejectedValueOnce(new Error('network down'));
       const r = await client.getResources({ type: 'waypoints' });
