@@ -19,6 +19,7 @@ import type {
   HistoryPathsResponse,
   HistoryContextsResponse,
   CourseStatusResponse,
+  AutopilotStatusResponse,
 } from './types/index.js';
 
 export class SignalKClient extends EventEmitter {
@@ -260,6 +261,29 @@ export class SignalKClient extends EventEmitter {
       course,
       calcValues,
       timestamp: now(),
+    };
+  }
+
+  /**
+   * Autopilot status (read-only): engaged / state / mode / target plus the
+   * available states, modes and actions. Reads the default device, or the given
+   * pilotId. target is converted from SignalK radians to degrees. Never throws.
+   */
+  async getAutopilotStatus(pilotId?: string): Promise<AutopilotStatusResponse> {
+    // STUB - real implementation follows in the next commit.
+    void pilotId;
+    return {
+      available: false,
+      connected: this.connected,
+      pilotId: null,
+      pilotIds: [],
+      engaged: null,
+      state: null,
+      mode: null,
+      targetDegrees: null,
+      targetRadians: null,
+      options: null,
+      timestamp: new Date().toISOString(),
     };
   }
 

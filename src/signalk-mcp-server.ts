@@ -476,6 +476,26 @@ export class SignalKMCPServer {
         },
       },
       {
+        name: 'get_autopilot_status',
+        description:
+          'Get autopilot status (read-only): whether it is engaged, its state and ' +
+          'mode, the target heading (in degrees), and the available states / modes ' +
+          '/ actions. Reads the default autopilot, or pass pilotId for a specific ' +
+          'device. Returns available:false when there is no autopilot API. This ' +
+          'does NOT control the autopilot.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            pilotId: {
+              type: 'string',
+              description:
+                'Optional autopilot device id (defaults to the vessel default)',
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
         name: 'get_connection_status',
         description: 'Get SignalK connection status and health. Useful for debugging and troubleshooting connectivity issues.',
         inputSchema: {
@@ -552,7 +572,7 @@ export class SignalKMCPServer {
             'IMPORTANT: ALL SDK functions are async and MUST be awaited, including getConnectionStatus(). ' +
             'Available functions: await getVesselState(), await getAisTargets(options), ' +
             'await getActiveAlarms(), await listAvailablePaths(), await getPathValue(path), await getConnectionStatus(), ' +
-            'await getHistory({paths, from, to, resolution}), await listHistoryPaths(options), await listHistoryContexts(options), await getCourseStatus(). ' +
+            'await getHistory({paths, from, to, resolution}), await listHistoryPaths(options), await listHistoryContexts(options), await getCourseStatus(), await getAutopilotStatus(pilotId?). ' +
             'History needs a SignalK history provider - check result.available; times are ISO-8601 and resolution is in SECONDS. ' +
             'Code MUST: (1) be wrapped in async IIFE, (2) await all SDK calls, (3) return JSON.stringify() of result. ' +
             'Example: (async () => { const vessel = await getVesselState(); return JSON.stringify({ name: vessel.data.name?.value }); })()',
@@ -627,7 +647,7 @@ export class SignalKMCPServer {
               throw new McpError(
                 ErrorCode.MethodNotFound,
                 `Tool ${name} is not available in code-only mode. Use execute_code tool with SignalK SDK functions instead. ` +
-                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus()`,
+                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus(), getAutopilotStatus()`,
               );
           }
         } catch (error: any) {

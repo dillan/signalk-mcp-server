@@ -169,3 +169,23 @@ export interface CourseStatusResponse {
   timestamp: string;
   error?: string;
 }
+
+export interface AutopilotStatusResponse {
+  available: boolean;
+  connected: boolean;
+  // the autopilot device that was read (the default, or the requested pilotId)
+  pilotId: string | null;
+  // ids of all autopilot devices on the vessel
+  pilotIds: string[];
+  engaged: boolean | null;
+  state: string | null;
+  mode: string | null;
+  // target heading converted to degrees, or null when there is no target
+  targetDegrees: number | null;
+  // raw target heading in radians (SignalK SI), or null
+  targetRadians: number | null;
+  // available states / modes / actions for the device
+  options: any;
+  timestamp: string;
+  error?: string;
+}

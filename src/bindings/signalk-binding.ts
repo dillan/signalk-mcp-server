@@ -11,6 +11,7 @@ import type {
   HistoryPathsResponse,
   HistoryContextsResponse,
   CourseStatusResponse,
+  AutopilotStatusResponse,
 } from '../types/index.js';
 
 /**
@@ -240,6 +241,22 @@ export class SignalKBinding {
    */
   async getCourseStatus(): Promise<CourseStatusResponse> {
     return this.client.getCourseStatus();
+  }
+
+  /**
+   * Autopilot status (read-only) - engaged / state / mode / target plus the
+   * available states, modes and actions.
+   *
+   * @param pilotId - optional device id; defaults to the vessel's default pilot
+   * @returns AutopilotStatusResponse; available:false if the autopilot API is
+   *   unavailable.
+   *
+   * @example
+   * const ap = await signalk.getAutopilotStatus();
+   * console.log(ap.engaged, ap.state, ap.targetDegrees);
+   */
+  async getAutopilotStatus(pilotId?: string): Promise<AutopilotStatusResponse> {
+    return this.client.getAutopilotStatus(pilotId);
   }
 
   /**

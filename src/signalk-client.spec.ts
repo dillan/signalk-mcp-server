@@ -2081,6 +2081,115 @@ describe('SignalKClient', () => {
     });
   });
 
+  describe('getAutopilotStatus', () => {
+    beforeEach(() => {
+      client = new SignalKClient({
+        hostname: 'example.com',
+        port: 3000,
+        useTLS: false,
+      });
+    });
+
+    const ok = (body: any) =>
+      ({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
+    const err = (status: number) =>
+      ({
+        ok: false,
+        status,
+        statusText: 'err',
+        text: () => Promise.resolve(''),
+      } as Response);
+
+    const deviceOffline = {
+      options: { states: [], modes: [], actions: [] },
+      state: 'standby',
+      mode: null,
+      target: null,
+      engaged: false,
+    };
+    const deviceEngaged = {
+      options: { states: [], modes: [], actions: [] },
+      state: 'auto',
+      mode: 'compass',
+      target: Math.PI / 2,
+      engaged: true,
+    };
+
+    test('no autopilot devices => available:true, empty', async () => {
+      mockFetch.mockResolvedValueOnce(ok({}));
+      const r = await client.getAutopilotStatus();
+      expect(r.available).toBe(true);
+      expect(r.pilotIds).toEqual([]);
+      expect(r.pilotId).toBeNull();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('default device picked via isDefault; offline target stays null', async () => {
+      mockFetch.mockResolvedValueOnce(
+        ok({ 'pilot-a': { isDefault: false }, 'pilot-b': { isDefault: true } }),
+      );
+      mockFetch.mockResolvedValueOnce(ok(deviceOffline));
+      const r = await client.getAutopilotStatus();
+      expect(r.available).toBe(true);
+      expect(r.pilotId).toBe('pilot-b');
+      expect(r.pilotIds).toEqual(['pilot-a', 'pilot-b']);
+      expect(r.engaged).toBe(false);
+      expect(r.state).toBe('standby');
+      expect(r.targetRadians).toBeNull();
+      expect(r.targetDegrees).toBeNull();
+      expect(mockFetch.mock.calls[1][0] as string).toContain(
+        '/autopilots/pilot-b',
+      );
+    });
+
+    test('target radians converted to degrees when engaged', async () => {
+      mockFetch.mockResolvedValueOnce(ok({ 'pilot-b': { isDefault: true } }));
+      mockFetch.mockResolvedValueOnce(ok(deviceEngaged));
+      const r = await client.getAutopilotStatus();
+      expect(r.engaged).toBe(true);
+      expect(r.targetRadians).toBeCloseTo(Math.PI / 2);
+      expect(r.targetDegrees).toBeCloseTo(90);
+    });
+
+    test('no isDefault => resolve via _providers/_default', async () => {
+      mockFetch.mockResolvedValueOnce(
+        ok({ 'pilot-a': { isDefault: false }, 'pilot-b': { isDefault: false } }),
+      );
+      mockFetch.mockResolvedValueOnce(ok({ id: 'pilot-b' }));
+      mockFetch.mockResolvedValueOnce(ok(deviceOffline));
+      const r = await client.getAutopilotStatus();
+      expect(r.pilotId).toBe('pilot-b');
+      expect(mockFetch.mock.calls[1][0] as string).toContain(
+        '/_providers/_default',
+      );
+    });
+
+    test('explicit pilotId reads that device', async () => {
+      mockFetch.mockResolvedValueOnce(
+        ok({ 'pilot-a': { isDefault: true }, 'pilot-b': { isDefault: false } }),
+      );
+      mockFetch.mockResolvedValueOnce(ok(deviceOffline));
+      const r = await client.getAutopilotStatus('pilot-b');
+      expect(r.pilotId).toBe('pilot-b');
+      expect(mockFetch.mock.calls[1][0] as string).toContain(
+        '/autopilots/pilot-b',
+      );
+    });
+
+    test('autopilot API unavailable (404) => available:false', async () => {
+      mockFetch.mockResolvedValueOnce(err(404));
+      const r = await client.getAutopilotStatus();
+      expect(r.available).toBe(false);
+      expect(r.pilotIds).toEqual([]);
+    });
+
+    test('network error => available:false, no throw', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('network down'));
+      const r = await client.getAutopilotStatus();
+      expect(r.available).toBe(false);
+    });
+  });
+
   describe('History Methods', () => {
     beforeEach(() => {
       client = new SignalKClient({

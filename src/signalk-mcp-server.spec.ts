@@ -270,7 +270,7 @@ describe('SignalKMCPServer', () => {
         .calls[0][1] as () => any;
       const result = await listToolsHandler();
 
-      expect(result.tools).toHaveLength(11);
+      expect(result.tools).toHaveLength(12);
       expect(result.tools.map((tool: any) => tool.name)).toEqual([
         'get_vessel_state',
         'get_ais_targets',
@@ -281,6 +281,7 @@ describe('SignalKMCPServer', () => {
         'list_history_paths',
         'list_history_contexts',
         'get_course_status',
+        'get_autopilot_status',
         'get_connection_status',
         'get_initial_context',
       ]);
