@@ -104,6 +104,27 @@
         "description": "Read-only autopilot status: engaged/state/mode/target plus the available states, modes and actions. With no pilotId it picks the default device. Target is reported in both radians and degrees.",
         "returns": "{ available, pilotId, pilotIds, engaged, state, mode, targetDegrees, targetRadians, options }. pilotIds lists every autopilot device. targetDegrees/targetRadians are null when no target is set (e.g. standby). available:false means the autopilot API is unavailable.",
         "example": "(async () => {\n  const ap = await getAutopilotStatus();\n  if (!ap.available) return JSON.stringify({ note: ap.error });\n  return JSON.stringify({ pilot: ap.pilotId, engaged: ap.engaged, state: ap.state, mode: ap.mode, headingDeg: ap.targetDegrees == null ? null : ap.targetDegrees.toFixed(0) });\n})()"
+      },
+      "getWeatherObservations": {
+        "signature": "await getWeatherObservations(options?)",
+        "description": "Current weather observations for the vessel position (air/water temperature, wind, pressure, humidity, waves, current). Resolves the vessel position first - lat/lon are required by the weather API - and does NOT fire the request when there is no fix. Values are SI: temperatures in kelvin, speeds in m/s, directions in radians, pressure in pascals.",
+        "parameters": "options (all optional): { latitude, longitude } to query a point other than the vessel; provider (weather provider id, defaults to the server default); count (max entries); date (YYYY-MM-DD start).",
+        "returns": "{ available, kind:'observations', position, provider, data, count }. data is the raw array of observations. available:false with reason:'no vessel position' when there is no fix; available:false with error when there is no weather provider.",
+        "example": "(async () => {\n  const w = await getWeatherObservations();\n  if (!w.available) return JSON.stringify({ note: w.reason || w.error });\n  const o = w.data[0] || {};\n  return JSON.stringify({ airC: o.outside?.temperature == null ? null : (o.outside.temperature - 273.15).toFixed(1), windKn: o.wind?.speedTrue == null ? null : (o.wind.speedTrue * 1.94384).toFixed(1) });\n})()"
+      },
+      "getWeatherForecast": {
+        "signature": "await getWeatherForecast({ type, latitude, longitude, provider, count, date })",
+        "description": "Weather forecast for the vessel position. type is 'daily' (per-day summary) or 'point' (per time-point series); defaults to 'daily'. Same position handling and SI units as getWeatherObservations.",
+        "parameters": "options (all optional): type ('daily'|'point'); latitude/longitude to query elsewhere; provider; count (max entries); date (YYYY-MM-DD start).",
+        "returns": "{ available, kind:'forecast', forecastType, position, provider, data, count }. data is the raw array of forecast entries. available:false with reason:'no vessel position' when there is no fix.",
+        "example": "(async () => {\n  const f = await getWeatherForecast({ type: 'daily', count: 3 });\n  if (!f.available) return JSON.stringify({ note: f.reason || f.error });\n  return JSON.stringify({ days: f.data.map(d => ({ date: d.date, highC: d.outside?.temperature == null ? null : (d.outside.temperature - 273.15).toFixed(0) })) });\n})()"
+      },
+      "getWeatherWarnings": {
+        "signature": "await getWeatherWarnings(options?)",
+        "description": "Active weather warnings for the vessel position (e.g. gale or storm advisories). Same position handling as getWeatherObservations.",
+        "parameters": "options (all optional): { latitude, longitude } to query elsewhere; provider.",
+        "returns": "{ available, kind:'warnings', position, provider, data, count }. data is the list of warnings (each { startTime, endTime, source, type, details }); count 0 means none. available:false with reason:'no vessel position' when there is no fix.",
+        "example": "(async () => {\n  const w = await getWeatherWarnings();\n  if (!w.available) return JSON.stringify({ note: w.reason || w.error });\n  return JSON.stringify({ count: w.count, warnings: w.data.map(x => x.type) });\n})()"
       }
     }
   },

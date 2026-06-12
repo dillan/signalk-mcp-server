@@ -436,30 +436,133 @@ export class SignalKClient extends EventEmitter {
   }
 
   /**
+   * Shared worker for the weather reads. Resolves the vessel position (the
+   * weather API requires lat/lon on every endpoint), and only then fetches the
+   * given endpoint. With no position fix the weather request is never sent.
+   * Never throws.
+   *
+   * @param kind - 'observations' | 'forecast' | 'warnings'
+   * @param endpoint - URL path under .../weather (e.g. 'forecasts/daily')
+   * @param forecastType - 'daily' | 'point' for forecasts, else null
+   * @param options - position override / provider / count / date
+   * @param seriesParams - whether to send count/date (not accepted by warnings)
+   */
+  private async fetchWeather(
+    kind: string,
+    endpoint: string,
+    forecastType: string | null,
+    options: WeatherQueryOptions | undefined,
+    seriesParams: boolean,
+  ): Promise<WeatherResponse> {
+    const now = () => new Date().toISOString();
+    const opts = options || {};
+
+    // 1) Resolve the query position: an explicit override, else the vessel's
+    //    current position. No fix => return without firing the weather request.
+    let position: { latitude: number; longitude: number } | null = null;
+    if (Number.isFinite(opts.latitude) && Number.isFinite(opts.longitude)) {
+      position = {
+        latitude: opts.latitude as number,
+        longitude: opts.longitude as number,
+      };
+    } else {
+      try {
+        const selfData = await this.getVesselState();
+        const value = selfData.data['navigation.position']?.value as
+          | { latitude?: number; longitude?: number }
+          | undefined;
+        if (
+          value &&
+          Number.isFinite(value.latitude) &&
+          Number.isFinite(value.longitude)
+        ) {
+          position = {
+            latitude: Number(value.latitude),
+            longitude: Number(value.longitude),
+          };
+        }
+      } catch {
+        // Leave position null; handled as "no fix" below.
+      }
+    }
+
+    if (!position) {
+      return this.weatherUnavailable(kind, forecastType, 'no vessel position');
+    }
+
+    // 2) Build the request (lat/lon required; provider/count/date optional).
+    const params: Record<string, string | number | undefined> = {
+      lat: position.latitude,
+      lon: position.longitude,
+      provider: opts.provider,
+    };
+    if (seriesParams) {
+      params.count = opts.count;
+      params.date = opts.date;
+    }
+
+    // 3) Fetch and shape the response.
+    try {
+      const response = await this.fetchJson(
+        this.buildWeatherApiUrl(endpoint, params),
+      );
+      if (!response.ok) {
+        const s = response.status;
+        const error =
+          s === 404 || s === 501
+            ? `Weather API not available on this SignalK server (HTTP ${s})`
+            : s === 401 || s === 403
+              ? `Weather API requires authentication - set SIGNALK_TOKEN (HTTP ${s})`
+              : `Weather request failed (HTTP ${s})`;
+        return this.weatherUnavailable(kind, forecastType, undefined, {
+          position,
+          provider: opts.provider ?? null,
+          error,
+        });
+      }
+      const body = await response.json();
+      const data: any[] = Array.isArray(body) ? body : [];
+      return {
+        available: true,
+        connected: this.connected,
+        kind,
+        forecastType,
+        position,
+        provider: opts.provider ?? null,
+        data,
+        count: data.length,
+        timestamp: now(),
+      };
+    } catch (error: any) {
+      console.error('Failed to fetch weather via HTTP:', error.message);
+      return this.weatherUnavailable(kind, forecastType, undefined, {
+        position,
+        provider: opts.provider ?? null,
+        error: `Weather request failed: ${error?.message || String(error)}`,
+      });
+    }
+  }
+
+  /**
    * Current weather observations for the vessel's position (read-only).
    * @param options - optional position override / provider / count / date
    */
   async getWeatherObservations(
     options?: WeatherQueryOptions,
   ): Promise<WeatherResponse> {
-    // STUB - real implementation follows in the next commit.
-    await Promise.resolve();
-    void options;
-    return this.weatherUnavailable('observations', null, 'not implemented');
+    return this.fetchWeather('observations', 'observations', null, options, true);
   }
 
   /**
    * Weather forecast for the vessel's position (read-only). type selects the
-   * 'daily' (per-day) or 'point' (per time-point) forecast.
+   * 'daily' (per-day) or 'point' (per time-point) forecast; defaults to 'daily'.
    * @param options - type plus optional position / provider / count / date
    */
   async getWeatherForecast(
     options?: WeatherQueryOptions,
   ): Promise<WeatherResponse> {
-    // STUB - real implementation follows in the next commit.
-    await Promise.resolve();
-    void options;
-    return this.weatherUnavailable('forecast', 'daily', 'not implemented');
+    const type = options?.type === 'point' ? 'point' : 'daily';
+    return this.fetchWeather('forecast', `forecasts/${type}`, type, options, true);
   }
 
   /**
@@ -469,10 +572,7 @@ export class SignalKClient extends EventEmitter {
   async getWeatherWarnings(
     options?: WeatherQueryOptions,
   ): Promise<WeatherResponse> {
-    // STUB - real implementation follows in the next commit.
-    await Promise.resolve();
-    void options;
-    return this.weatherUnavailable('warnings', null, 'not implemented');
+    return this.fetchWeather('warnings', 'warnings', null, options, false);
   }
 
   /**

@@ -48,7 +48,7 @@ describe('SignalKClient', () => {
     // mockResolvedValueOnce queue, so an unconsumed queued response from one
     // test can never bleed into the next.
     jest.clearAllMocks();
-    mockFetch.mockReset();
+    mockFetch.mockClear();
 
     // Get the mock constructor using dynamic import
     mockSignalKClient = {
@@ -2246,11 +2246,38 @@ describe('SignalKClient', () => {
       expect(w.count).toBe(1);
       expect(w.data).toEqual(observations);
       expect(w.position).toEqual({ latitude: 12, longitude: 34 });
+      expect(w.provider).toBeNull();
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
       expect(url).toContain('/signalk/v2/api/weather/observations');
       expect(url).toContain('lat=12');
       expect(url).toContain('lon=34');
+    });
+
+    test('a partial position override (only latitude) falls back to the vessel position', async () => {
+      // One coordinate alone is unusable, so the vessel position is used.
+      mockFetch.mockResolvedValueOnce(
+        ok({ navigation: { position: { value: { latitude: 50, longitude: 60 } } } }),
+      );
+      mockFetch.mockResolvedValueOnce(ok(observations));
+      const w = await client.getWeatherObservations({ latitude: 12 });
+      expect(w.position).toEqual({ latitude: 50, longitude: 60 });
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    test('position (0, 0) is a valid fix (Number.isFinite, not truthy)', async () => {
+      mockFetch.mockResolvedValueOnce(ok(observations));
+      const w = await client.getWeatherObservations({
+        latitude: 0,
+        longitude: 0,
+      });
+      expect(w.available).toBe(true);
+      expect(w.position).toEqual({ latitude: 0, longitude: 0 });
+      // The explicit (0,0) override is used directly - no vessel-state probe.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+      expect(url).toContain('lat=0');
+      expect(url).toContain('lon=0');
     });
 
     test('resolves the vessel position first, then requests weather', async () => {
@@ -2291,13 +2318,14 @@ describe('SignalKClient', () => {
       expect(url).toContain('count=3');
     });
 
-    test('weather API unavailable (404) => available:false', async () => {
+    test('weather API unavailable (404) => available:false with a clear error', async () => {
       mockFetch.mockResolvedValueOnce(err(404));
       const w = await client.getWeatherObservations({
         latitude: 12,
         longitude: 34,
       });
       expect(w.available).toBe(false);
+      expect(w.error).toContain('not available');
     });
 
     test('forecast defaults to the daily endpoint', async () => {
@@ -2337,6 +2365,19 @@ describe('SignalKClient', () => {
       expect(decodeURIComponent(mockFetch.mock.calls[0][0] as string)).toContain(
         '/weather/warnings',
       );
+    });
+
+    test('warnings ignores count/date (the endpoint does not accept them)', async () => {
+      mockFetch.mockResolvedValueOnce(ok(warnings));
+      await client.getWeatherWarnings({
+        latitude: 12,
+        longitude: 34,
+        count: 5,
+        date: '2026-06-12',
+      });
+      const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+      expect(url).not.toContain('count=');
+      expect(url).not.toContain('date=');
     });
 
     test('network error => available:false, no throw', async () => {
