@@ -289,6 +289,26 @@ describe('SignalKMCPServer', () => {
       expect(aisTargetsTool.inputSchema.properties.pageSize.type).toBe('number');
       expect(aisTargetsTool.inputSchema.properties.pageSize.maximum).toBe(50);
     });
+
+    test('every read tool carries readOnlyHint:true', async () => {
+      new SignalKMCPServer({ executionMode: 'tools' });
+      const listToolsHandler = mockServer.setRequestHandler.mock
+        .calls[0][1] as () => any;
+      const result = await listToolsHandler();
+      for (const tool of result.tools) {
+        expect(tool.annotations?.readOnlyHint).toBe(true);
+      }
+    });
+
+    test('execute_code is annotated not-read-only and open-world', async () => {
+      new SignalKMCPServer({ executionMode: 'hybrid' });
+      const listToolsHandler = mockServer.setRequestHandler.mock
+        .calls[0][1] as () => any;
+      const result = await listToolsHandler();
+      const ec = result.tools.find((t: any) => t.name === 'execute_code');
+      expect(ec.annotations.readOnlyHint).toBe(false);
+      expect(ec.annotations.openWorldHint).toBe(true);
+    });
   });
 
   describe('Tool execution', () => {
