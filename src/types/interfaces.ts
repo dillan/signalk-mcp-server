@@ -327,10 +327,12 @@ export interface UnifiedTargetsResponse {
   // distanceMeters (closest first). No cross-source dedup - the same physical
   // vessel may appear once per source (AIS has no shared key with a radar echo).
   targets: any[];
-  // per-source availability and returned count (AIS is the nearest 50)
+  // per-source availability and returned count (AIS is the nearest 50; `total`
+  // is the server's full AIS count when more were available than returned).
+  // `error` carries why a requested source is unavailable.
   sources: {
-    ais?: { available: boolean; count: number };
-    radar?: { available: boolean; count: number };
+    ais?: { available: boolean; count: number; total?: number; error?: string };
+    radar?: { available: boolean; count: number; error?: string };
   };
   timestamp: string;
   error?: string;

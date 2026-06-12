@@ -2931,7 +2931,11 @@ describe('SignalKClient', () => {
       const r = await client.getTargets();
       expect(r.available).toBe(false);
       expect(r.count).toBe(0);
-      expect(r.sources.ais).toEqual({ available: false, count: 0 });
+      expect(r.sources.ais).toEqual({
+        available: false,
+        count: 0,
+        error: 'down',
+      });
     });
 
     test('a rejecting source does not throw; the other still reports', async () => {
@@ -2943,7 +2947,52 @@ describe('SignalKClient', () => {
         .mockResolvedValue(radarResult as any);
       const r = await client.getTargets();
       expect(r.targets.some((t: any) => t.source === 'radar')).toBe(true);
-      expect(r.sources.ais).toEqual({ available: false, count: 0 });
+      expect(r.sources.ais).toEqual({
+        available: false,
+        count: 0,
+        error: 'request failed',
+      });
+    });
+
+    test('an unknown source falls back to all', async () => {
+      const aisSpy = jest
+        .spyOn(client, 'getAISTargets')
+        .mockResolvedValue(aisResult as any);
+      const radarSpy = jest
+        .spyOn(client, 'getRadarTargets')
+        .mockResolvedValue(radarResult as any);
+      const r = await client.getTargets({ source: 'bogus' as any });
+      expect(aisSpy).toHaveBeenCalled();
+      expect(radarSpy).toHaveBeenCalled();
+      expect(r.count).toBe(2);
+    });
+
+    test('reports the AIS server total when more than 50 are available', async () => {
+      jest.spyOn(client, 'getAISTargets').mockResolvedValue({
+        connected: true,
+        count: 50,
+        targets: aisResult.targets,
+        timestamp: 't',
+        pagination: {
+          page: 1,
+          pageSize: 50,
+          totalCount: 150,
+          totalPages: 3,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
+      } as any);
+      jest.spyOn(client, 'getRadarTargets').mockResolvedValue({
+        available: false,
+        connected: false,
+        count: 0,
+        targets: [],
+        deviceStatus: {},
+        timestamp: 't',
+        reason: 'no_provider',
+      } as any);
+      const r = await client.getTargets({ source: 'ais' });
+      expect(r.sources.ais?.total).toBe(150);
     });
   });
 

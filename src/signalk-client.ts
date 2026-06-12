@@ -959,7 +959,11 @@ export class SignalKClient extends EventEmitter {
   async getTargets(
     options?: TargetsQueryOptions,
   ): Promise<UnifiedTargetsResponse> {
-    const source = options?.source || 'all';
+    // Normalize the source; an unknown value falls back to 'all' rather than
+    // silently returning nothing.
+    const s = options?.source;
+    const source: 'ais' | 'radar' | 'all' =
+      s === 'ais' || s === 'radar' ? s : 'all';
     const wantAis = source === 'ais' || source === 'all';
     const wantRadar = source === 'radar' || source === 'all';
 
@@ -975,12 +979,21 @@ export class SignalKClient extends EventEmitter {
 
     if (wantAis) {
       if (ais && !ais.error) {
-        sources.ais = { available: true, count: ais.targets.length };
+        sources.ais = {
+          available: true,
+          count: ais.targets.length,
+          // surface the server total when AIS was capped at the nearest 50
+          ...(ais.pagination ? { total: ais.pagination.totalCount } : {}),
+        };
         for (const t of ais.targets) {
           targets.push({ ...t, source: 'ais' });
         }
       } else {
-        sources.ais = { available: false, count: 0 };
+        sources.ais = {
+          available: false,
+          count: 0,
+          error: ais?.error || 'request failed',
+        };
       }
     }
     if (wantRadar) {
@@ -990,7 +1003,11 @@ export class SignalKClient extends EventEmitter {
           targets.push({ ...t, source: 'radar' });
         }
       } else {
-        sources.radar = { available: false, count: 0 };
+        sources.radar = {
+          available: false,
+          count: 0,
+          error: radar?.error || radar?.reason || 'request failed',
+        };
       }
     }
 
