@@ -205,7 +205,16 @@
     }
   },
   "data_interpretation": {
-    "units": "All SignalK values use SI units (meters, seconds, Kelvin, radians)",
+    "units": {
+      "note": "All SignalK values are SI. Keep them raw in what you return and convert in the isolate - do not mix raw and converted values in one response.",
+      "speed": "m/s -> knots: v * 1.94384 ; m/s -> km/h: v * 3.6 ; m/s -> mph: v * 2.23694",
+      "angle": "radians -> degrees: v * 180 / Math.PI (or v * 57.2958). Headings, bearings, courses and wind angles are radians (0..2*PI); courseOverGroundTrue / direction* are relative to true north.",
+      "temperature": "kelvin -> Celsius: v - 273.15 ; kelvin -> Fahrenheit: (v - 273.15) * 9/5 + 32",
+      "pressure": "pascals -> hPa / millibars: v / 100 ; pascals -> inHg: v / 3386.39",
+      "distance": "metres -> nautical miles: v / 1852 ; metres -> feet: v * 3.28084 ; metres -> km: v / 1000",
+      "ratio": "cloudCover, humidity and salinity are 0..1 ratios -> percent: v * 100",
+      "volume": "cubic metres -> litres: v * 1000 ; m^3 -> US gallons: v * 264.172"
+    },
     "timestamps": "All data includes RFC 3339 timestamps for freshness checking",
     "missing_data": "Paths may not exist if sensors/systems not installed",
     "null_values": "Null values indicate sensor offline or no valid reading",
