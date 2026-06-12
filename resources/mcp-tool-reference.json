@@ -132,6 +132,12 @@
         "parameters": "type (required). limit, distance, bbox, position, zoom apply to waypoints/routes/regions/notes (NOT charts); href applies to notes only; provider applies to all.",
         "returns": "{ available, type, count, resources }. resources is the raw object keyed by resource id. available:false with reason ('invalid_type' | 'no_provider' | 'auth' | 'error') when unavailable.",
         "example": "(async () => {\n  const r = await getResources({ type: 'waypoints', distance: 5000 });\n  if (!r.available) return JSON.stringify({ note: r.reason || r.error });\n  const names = Object.values(r.resources).map(w => w.name).filter(Boolean);\n  return JSON.stringify({ count: r.count, names });\n})()"
+      },
+      "getRadarTargets": {
+        "signature": "await getRadarTargets()",
+        "description": "Radar (M)ARPA targets across all radar devices: one merged list tagged by radar_id, distance-sorted, plus a deviceStatus map (radar_id -> 'ok' | 'not_found' | 'no_arpa' | 'error'). Each target carries the raw ArpaTarget fields (id, status, position {bearing(rad), distance(m), latitude?, longitude?}, motion? {course(rad), speed(m/s)}, danger? {cpa(m), tcpa(s)}). distanceMeters (great-circle from the vessel) is present only when the target has an absolute position. danger is server-computed when the radar provides it.",
+        "returns": "{ available, count, targets, deviceStatus }. available:false with reason ('no_provider' | 'auth' | 'error') when there is no radar API.",
+        "example": "(async () => {\n  const r = await getRadarTargets();\n  if (!r.available) return JSON.stringify({ note: r.reason || r.error });\n  const dangerous = r.targets.filter(t => t.danger && t.danger.cpa < 500).map(t => ({ radar: t.radar_id, id: t.id, cpaM: t.danger.cpa, tcpaS: t.danger.tcpa }));\n  return JSON.stringify({ count: r.count, devices: r.deviceStatus, dangerous });\n})()"
       }
     }
   },

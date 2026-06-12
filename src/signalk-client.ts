@@ -803,16 +803,144 @@ export class SignalKClient extends EventEmitter {
    * unsupported radar is never silent. Never throws.
    */
   async getRadarTargets(): Promise<RadarTargetsResponse> {
-    // STUB - real implementation follows in the next commit.
-    await Promise.resolve();
-    return {
+    const now = () => new Date().toISOString();
+    const base = `${this.buildHttpUrl()}/signalk/v2/api/vessels/self/radars`;
+    const degraded = (reason: string, error?: string): RadarTargetsResponse => ({
       available: false,
       connected: this.connected,
       count: 0,
       targets: [],
       deviceStatus: {},
-      timestamp: new Date().toISOString(),
-      reason: 'not implemented',
+      timestamp: now(),
+      reason,
+      ...(error ? { error } : {}),
+    });
+
+    // 1) List the radar devices (a keyed object { radar_id: RadarInfo }; {} when
+    //    none, never 404). We read only the ids - the device info carries IP /
+    //    WebSocket addresses we deliberately never surface.
+    let devices: Record<string, any> = {};
+    try {
+      const response = await this.fetchJson(base);
+      if (!response.ok) {
+        const s = response.status;
+        const reason =
+          s === 404 || s === 501
+            ? 'no_provider'
+            : s === 401 || s === 403
+              ? 'auth'
+              : 'error';
+        const error =
+          s === 404 || s === 501
+            ? `Radar API not available on this SignalK server (HTTP ${s})`
+            : s === 401 || s === 403
+              ? `Radar API requires authentication - set SIGNALK_TOKEN (HTTP ${s})`
+              : `Radar request failed (HTTP ${s})`;
+        return degraded(reason, error);
+      }
+      devices = (await response.json()) || {};
+    } catch (error: any) {
+      console.error('Failed to fetch radars via HTTP:', error.message);
+      return degraded(
+        'error',
+        `Radar request failed: ${error?.message || String(error)}`,
+      );
+    }
+
+    const radarIds = Object.keys(devices);
+    if (radarIds.length === 0) {
+      return {
+        available: true,
+        connected: this.connected,
+        count: 0,
+        targets: [],
+        deviceStatus: {},
+        timestamp: now(),
+      };
+    }
+
+    // 2) Resolve the vessel position (best-effort) for the great-circle distance.
+    let selfPosition: { latitude: number; longitude: number } | null = null;
+    try {
+      const selfData = await this.getVesselState();
+      const value = selfData.data['navigation.position']?.value as
+        | { latitude?: number; longitude?: number }
+        | undefined;
+      if (
+        value &&
+        Number.isFinite(value.latitude) &&
+        Number.isFinite(value.longitude)
+      ) {
+        selfPosition = {
+          latitude: Number(value.latitude),
+          longitude: Number(value.longitude),
+        };
+      }
+    } catch {
+      // No fix; targets simply won't carry distanceMeters.
+    }
+
+    // 3) Fan out per device, recording each outcome so a missing or
+    //    ARPA-incapable radar is never silent.
+    const deviceStatus: Record<string, string> = {};
+    const targets: RadarTarget[] = [];
+    await Promise.all(
+      radarIds.map(async (rid) => {
+        try {
+          const response = await this.fetchJson(
+            `${base}/${encodeURIComponent(rid)}/targets`,
+          );
+          if (!response.ok) {
+            const s = response.status;
+            deviceStatus[rid] =
+              s === 404 ? 'not_found' : s === 501 ? 'no_arpa' : 'error';
+            return;
+          }
+          deviceStatus[rid] = 'ok';
+          const body: any = await response.json();
+          if (Array.isArray(body)) {
+            for (const t of body) {
+              const target: RadarTarget = { ...t, radar_id: rid };
+              const lat = t?.position?.latitude;
+              const lon = t?.position?.longitude;
+              if (
+                selfPosition &&
+                typeof lat === 'number' &&
+                typeof lon === 'number'
+              ) {
+                target.distanceMeters = this.calculateDistance(
+                  selfPosition.latitude,
+                  selfPosition.longitude,
+                  lat,
+                  lon,
+                );
+              }
+              targets.push(target);
+            }
+          }
+        } catch {
+          deviceStatus[rid] = 'error';
+        }
+      }),
+    );
+
+    // 4) Sort by distance (closest first); targets without a position keep order.
+    targets.sort((a, b) => {
+      if (a.distanceMeters !== undefined && b.distanceMeters !== undefined) {
+        return a.distanceMeters - b.distanceMeters;
+      }
+      if (a.distanceMeters !== undefined) return -1;
+      if (b.distanceMeters !== undefined) return 1;
+      return 0;
+    });
+
+    return {
+      available: true,
+      connected: this.connected,
+      count: targets.length,
+      targets,
+      deviceStatus,
+      timestamp: now(),
     };
   }
 
