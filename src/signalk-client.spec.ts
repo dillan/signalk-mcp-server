@@ -1949,6 +1949,43 @@ describe('SignalKClient', () => {
     });
   });
 
+  describe('Request reliability (timeout + retry)', () => {
+    beforeEach(() => {
+      client = new SignalKClient({
+        hostname: 'example.com',
+        port: 3000,
+        useTLS: false,
+      });
+    });
+
+    test('a hung server times out gracefully instead of stalling the call', async () => {
+      jest.useFakeTimers();
+      try {
+        // The server "hangs": fetch only settles if its request is aborted.
+        mockFetch.mockImplementation(
+          (_url: any, init: any) =>
+            new Promise((_resolve, reject) => {
+              const signal = (init && init.signal) as AbortSignal | undefined;
+              signal?.addEventListener('abort', () =>
+                reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+              );
+            }) as any,
+        );
+
+        const pending = client.listAvailablePaths();
+        // Drive the initial timeout and the one retry.
+        await jest.advanceTimersByTimeAsync(60000);
+        const res = await pending;
+
+        expect(res.connected).toBe(false);
+        expect(typeof res.error).toBe('string');
+        expect(res.error).toMatch(/tim(e|ed)\s?out|failed/i);
+      } finally {
+        jest.useRealTimers();
+      }
+    }, 15000);
+  });
+
   describe('History Methods', () => {
     beforeEach(() => {
       client = new SignalKClient({
