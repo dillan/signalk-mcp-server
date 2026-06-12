@@ -98,6 +98,12 @@
         "description": "Current navigation course: active route/destination plus calculated values (cross-track error, bearing, ETA, VMG, time-to-go). Values are SI (distance in metres, bearings in radians).",
         "returns": "{ available, navigating, course, calcValues }. navigating is false (and calcValues null) when no destination is set. available:false means the course API is unavailable.",
         "example": "(async () => {\n  const c = await getCourseStatus();\n  if (!c.available) return JSON.stringify({ note: c.error });\n  if (!c.navigating) return JSON.stringify({ navigating: false });\n  return JSON.stringify({ distanceNm: (c.calcValues.distance / 1852).toFixed(2), bearingDeg: (c.calcValues.bearingTrue * 57.2958).toFixed(0) });\n})()"
+      },
+      "getAutopilotStatus": {
+        "signature": "await getAutopilotStatus(pilotId?)",
+        "description": "Read-only autopilot status: engaged/state/mode/target plus the available states, modes and actions. With no pilotId it picks the default device. Target is reported in both radians and degrees.",
+        "returns": "{ available, pilotId, pilotIds, engaged, state, mode, targetDegrees, targetRadians, options }. pilotIds lists every autopilot device. targetDegrees/targetRadians are null when no target is set (e.g. standby). available:false means the autopilot API is unavailable.",
+        "example": "(async () => {\n  const ap = await getAutopilotStatus();\n  if (!ap.available) return JSON.stringify({ note: ap.error });\n  return JSON.stringify({ pilot: ap.pilotId, engaged: ap.engaged, state: ap.state, mode: ap.mode, headingDeg: ap.targetDegrees == null ? null : ap.targetDegrees.toFixed(0) });\n})()"
       }
     }
   },

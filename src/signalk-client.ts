@@ -270,10 +270,13 @@ export class SignalKClient extends EventEmitter {
    * pilotId. target is converted from SignalK radians to degrees. Never throws.
    */
   async getAutopilotStatus(pilotId?: string): Promise<AutopilotStatusResponse> {
-    // STUB - real implementation follows in the next commit.
-    void pilotId;
-    return {
-      available: false,
+    const now = () => new Date().toISOString();
+    const base = `${this.buildHttpUrl()}/signalk/v2/api/vessels/self/autopilots`;
+    const empty = (
+      available: boolean,
+      extra: Partial<AutopilotStatusResponse> = {},
+    ): AutopilotStatusResponse => ({
+      available,
       connected: this.connected,
       pilotId: null,
       pilotIds: [],
@@ -283,8 +286,105 @@ export class SignalKClient extends EventEmitter {
       targetDegrees: null,
       targetRadians: null,
       options: null,
-      timestamp: new Date().toISOString(),
-    };
+      timestamp: now(),
+      ...extra,
+    });
+
+    // 1) List autopilot devices: a keyed object { id: { provider, isDefault } }.
+    let devices: Record<string, any> = {};
+    try {
+      const response = await this.fetchJson(base);
+      if (!response.ok) {
+        const s = response.status;
+        const error =
+          s === 404 || s === 501
+            ? `Autopilot API not available on this SignalK server (HTTP ${s})`
+            : s === 401 || s === 403
+              ? `Autopilot API requires authentication - set SIGNALK_TOKEN (HTTP ${s})`
+              : `Autopilot request failed (HTTP ${s})`;
+        return empty(false, { error });
+      }
+      devices = (await response.json()) || {};
+    } catch (error: any) {
+      console.error('Failed to fetch autopilots via HTTP:', error.message);
+      return empty(false, {
+        error: `Autopilot request failed: ${error?.message || String(error)}`,
+      });
+    }
+
+    const pilotIds = Object.keys(devices);
+    if (pilotIds.length === 0) {
+      return empty(true);
+    }
+
+    // 2) Resolve which device to read: explicit pilotId, else isDefault, else
+    //    the documented default provider, else the first device.
+    let chosen: string;
+    if (pilotId) {
+      chosen = pilotId;
+    } else {
+      const byFlag = pilotIds.find((id) => devices[id]?.isDefault);
+      if (byFlag) {
+        chosen = byFlag;
+      } else {
+        let viaDefault: string | undefined;
+        try {
+          const res = await this.fetchJson(`${base}/_providers/_default`);
+          if (res.ok) {
+            const d: any = await res.json();
+            if (d?.id && pilotIds.includes(d.id)) {
+              viaDefault = d.id;
+            }
+          }
+        } catch {
+          // Ignore; fall back to the first device below.
+        }
+        chosen = viaDefault ?? pilotIds[0];
+      }
+    }
+    if (!pilotIds.includes(chosen)) {
+      return empty(true, {
+        pilotIds,
+        error: `Autopilot '${chosen}' not found; available: ${pilotIds.join(', ')}`,
+      });
+    }
+
+    // 3) Read the chosen device's status.
+    try {
+      const response = await this.fetchJson(
+        `${base}/${encodeURIComponent(chosen)}`,
+      );
+      if (!response.ok) {
+        return empty(true, {
+          pilotId: chosen,
+          pilotIds,
+          error: `Autopilot '${chosen}' status unavailable (HTTP ${response.status})`,
+        });
+      }
+      const dev: any = await response.json();
+      const targetRadians = typeof dev?.target === 'number' ? dev.target : null;
+      return {
+        available: true,
+        connected: this.connected,
+        pilotId: chosen,
+        pilotIds,
+        engaged: typeof dev?.engaged === 'boolean' ? dev.engaged : null,
+        state: dev?.state ?? null,
+        mode: dev?.mode ?? null,
+        targetRadians,
+        targetDegrees:
+          targetRadians !== null ? targetRadians * (180 / Math.PI) : null,
+        options: dev?.options ?? null,
+        timestamp: now(),
+      };
+    } catch (error: any) {
+      console.error('Failed to fetch autopilot status via HTTP:', error.message);
+      return empty(true, {
+        pilotId: chosen,
+        pilotIds,
+        error: `Autopilot status request failed: ${error?.message || String(error)}`,
+      });
+    }
   }
 
   /**
