@@ -85,6 +85,7 @@ jest.mock('@modelcontextprotocol/sdk/types.js', () => ({
 
 import { SignalKMCPServer } from './signalk-mcp-server.js';
 import { SignalKClient } from './signalk-client.js';
+import { SignalKBinding } from './bindings/signalk-binding.js';
 
 // Mock the SignalK client
 jest.mock('./signalk-client', () => ({
@@ -553,6 +554,35 @@ describe('Tool Migration Tests', () => {
 
       // Should be valid async IIFE pattern
       expect(code.trim().endsWith('})();')).toBe(true);
+    });
+  });
+
+  describe('Tool/binding parity', () => {
+    // Direct-only utility tools: handled by the server, not exposed inside the
+    // isolate as SDK functions that call the binding.
+    const DIRECT_ONLY = ['execute_code', 'get_initial_context'];
+    const toCamelCase = (s: string): string =>
+      s.replace(/_([a-z])/g, (_m: string, c: string) => c.toUpperCase());
+
+    it('every tool definition has a matching camelCase method on SignalKBinding', () => {
+      new SignalKMCPServer({ executionMode: 'hybrid' });
+      const listToolsHandler = mockServer.setRequestHandler.mock.calls.find(
+        (call) => call[0] === 'ListToolsRequestSchema'
+      )?.[1] as any;
+      const tools = listToolsHandler().tools as Array<{ name: string }>;
+
+      const bindingMethods = Object.getOwnPropertyNames(
+        SignalKBinding.prototype
+      );
+      const missing = tools
+        .map((t) => t.name)
+        .filter((name) => !DIRECT_ONLY.includes(name))
+        .filter((name) => !bindingMethods.includes(toCamelCase(name)));
+
+      // The isolate SDK is auto-generated from tool names via the same
+      // camelCase rule (generator.ts); a tool without a matching binding method
+      // would be a broken SDK function inside execute_code.
+      expect(missing).toEqual([]);
     });
   });
 });
