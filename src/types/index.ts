@@ -47,6 +47,8 @@ export type {
   ServerFeaturesResponse,
   ResourcesQueryOptions,
   ResourcesResponse,
+  RadarTarget,
+  RadarTargetsResponse,
 } from './interfaces';
 
 export type {

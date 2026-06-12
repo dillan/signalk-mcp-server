@@ -63,6 +63,7 @@ jest.mock('./signalk-client', () => ({
     getServerInfo: jest.fn(),
     getServerFeatures: jest.fn(),
     getResources: jest.fn(),
+    getRadarTargets: jest.fn(),
     getConnectionStatus: jest.fn(),
     disconnect: jest.fn(),
     buildWebSocketUrl: jest.fn(),
@@ -134,6 +135,7 @@ describe('SignalKMCPServer', () => {
     getServerInfo: jest.fn(),
     getServerFeatures: jest.fn(),
     getResources: jest.fn(),
+    getRadarTargets: jest.fn(),
       getConnectionStatus: jest.fn(),
       disconnect: jest.fn(),
       buildWebSocketUrl: jest.fn(),
@@ -292,7 +294,7 @@ describe('SignalKMCPServer', () => {
         .calls[0][1] as () => any;
       const result = await listToolsHandler();
 
-      expect(result.tools).toHaveLength(16);
+      expect(result.tools).toHaveLength(17);
       expect(result.tools.map((tool: any) => tool.name)).toEqual([
         'get_vessel_state',
         'get_ais_targets',
@@ -308,6 +310,7 @@ describe('SignalKMCPServer', () => {
         'get_weather_forecast',
         'get_weather_warnings',
         'get_resources',
+        'get_radar_targets',
         'get_connection_status',
         'get_initial_context',
       ]);
@@ -583,6 +586,7 @@ describe('SignalKMCPServer', () => {
           method: 'getResources',
           args: { type: 'waypoints' },
         },
+        { tool: 'get_radar_targets', method: 'getRadarTargets', args: {} },
       ];
 
       cases.forEach(({ tool, method, args, expectArgs }) => {

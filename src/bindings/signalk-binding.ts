@@ -16,6 +16,7 @@ import type {
   WeatherResponse,
   ResourcesQueryOptions,
   ResourcesResponse,
+  RadarTargetsResponse,
 } from '../types/index.js';
 
 /**
@@ -344,6 +345,29 @@ export class SignalKBinding {
     options: ResourcesQueryOptions,
   ): Promise<ResourcesResponse> {
     return this.client.getResources(options);
+  }
+
+  /**
+   * Radar (M)ARPA targets across all radar devices (read-only).
+   *
+   * Returns one merged, distance-sorted list tagged by `radar_id`, plus a
+   * `deviceStatus` map so you can see which radars reported, were not found, or
+   * lack ARPA support. `distanceMeters` is the great-circle distance from the
+   * vessel and is only present when the target has an absolute position;
+   * `danger` (cpa/tcpa) is server-computed when the radar provides it. Bearings
+   * and courses are radians; distances metres; speeds m/s.
+   *
+   * @returns RadarTargetsResponse; available:false when there is no radar API.
+   *
+   * @example
+   * const r = await signalk.getRadarTargets();
+   * if (r.available) {
+   *   const close = r.targets.filter(t => t.danger && t.danger.cpa < 500);
+   *   console.log(close.length, 'targets with a close CPA');
+   * }
+   */
+  async getRadarTargets(): Promise<RadarTargetsResponse> {
+    return this.client.getRadarTargets();
   }
 
   /**

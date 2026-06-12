@@ -661,6 +661,23 @@ export class SignalKMCPServer {
         },
       },
       {
+        name: 'get_radar_targets',
+        description:
+          'Get radar (M)ARPA targets across all radar devices (read-only). ' +
+          'Returns one merged, distance-sorted list tagged by radar_id, plus a ' +
+          'deviceStatus map showing which radars reported / were not found / ' +
+          'lack ARPA support. distanceMeters (great-circle from the vessel) is ' +
+          'present only when a target has an absolute position; danger (cpa/tcpa) ' +
+          'is server-computed when available. Bearings/courses are radians, ' +
+          'distances metres, speeds m/s. Returns available:false when there is ' +
+          'no radar API.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false,
+        },
+      },
+      {
         name: 'get_connection_status',
         description: 'Get SignalK connection status and health. Useful for debugging and troubleshooting connectivity issues.',
         inputSchema: {
@@ -738,7 +755,7 @@ export class SignalKMCPServer {
             'Available functions: await getVesselState(), await getAisTargets(options), ' +
             'await getActiveAlarms(), await listAvailablePaths(), await getPathValue(path), await getConnectionStatus(), ' +
             'await getHistory({paths, from, to, resolution}), await listHistoryPaths(options), await listHistoryContexts(options), await getCourseStatus(), await getAutopilotStatus(pilotId?), ' +
-            'await getWeatherObservations(options?), await getWeatherForecast({type}?), await getWeatherWarnings(options?), await getResources({type}). ' +
+            'await getWeatherObservations(options?), await getWeatherForecast({type}?), await getWeatherWarnings(options?), await getResources({type}), await getRadarTargets(). ' +
             'History needs a SignalK history provider - check result.available; times are ISO-8601 and resolution is in SECONDS. ' +
             'Code MUST: (1) be wrapped in async IIFE, (2) await all SDK calls, (3) return JSON.stringify() of result. ' +
             'Example: (async () => { const vessel = await getVesselState(); return JSON.stringify({ name: vessel.data.name?.value }); })()',
@@ -835,6 +852,11 @@ export class SignalKMCPServer {
                   await this.signalkClient.getResources(args),
                   'getResources()',
                 );
+              case 'get_radar_targets':
+                return this.wrapToolResult(
+                  await this.signalkClient.getRadarTargets(),
+                  'getRadarTargets()',
+                );
               case 'get_connection_status':
                 return this.getConnectionStatus();
               case 'get_initial_context':
@@ -858,7 +880,7 @@ export class SignalKMCPServer {
               throw new McpError(
                 ErrorCode.MethodNotFound,
                 `Tool ${name} is not available in code-only mode. Use execute_code tool with SignalK SDK functions instead. ` +
-                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus(), getAutopilotStatus(), getWeatherObservations(), getWeatherForecast(), getWeatherWarnings(), getResources()`,
+                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus(), getAutopilotStatus(), getWeatherObservations(), getWeatherForecast(), getWeatherWarnings(), getResources(), getRadarTargets()`,
               );
           }
         } catch (error: any) {

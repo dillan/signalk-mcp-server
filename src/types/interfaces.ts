@@ -286,3 +286,29 @@ export interface ResourcesResponse {
   reason?: string;
   error?: string;
 }
+
+export interface RadarTarget {
+  // the radar device this target came from
+  radar_id: string;
+  // great-circle distance from the vessel (Haversine), when the target carries
+  // an absolute latitude/longitude; absent otherwise
+  distanceMeters?: number;
+  // the raw ArpaTarget fields: id, status, position { bearing(rad), distance(m),
+  // latitude?, longitude? }, motion? { course(rad), speed(m/s) },
+  // danger? { cpa(m), tcpa(s) }, acquisition, firstSeen, lastSeen
+  [key: string]: any;
+}
+
+export interface RadarTargetsResponse {
+  available: boolean;
+  connected: boolean;
+  count: number;
+  targets: RadarTarget[];
+  // per-device outcome so missing radar data is never silent
+  // radar_id -> 'ok' | 'not_found' | 'no_arpa' | 'error'
+  deviceStatus: Record<string, string>;
+  timestamp: string;
+  // why unavailable: 'no_provider' | 'auth' | 'error'
+  reason?: string;
+  error?: string;
+}

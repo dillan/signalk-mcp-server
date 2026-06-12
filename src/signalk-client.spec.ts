@@ -2715,6 +2715,113 @@ describe('SignalKClient', () => {
     });
   });
 
+  describe('Radar Methods', () => {
+    beforeEach(() => {
+      client = new SignalKClient({
+        hostname: 'example.com',
+        port: 3000,
+        useTLS: false,
+      });
+    });
+
+    const ok = (body: any) =>
+      ({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
+    const err = (status: number) =>
+      ({
+        ok: false,
+        status,
+        statusText: 'err',
+        text: () => Promise.resolve(''),
+      } as Response);
+
+    // Scrubbed fixtures (no device IPs/URLs - only the device ids are read;
+    // synthetic Annapolis-area coordinates).
+    const radarList = { 'radar-1': { name: 'Test Radar', brand: 'Emulator' } };
+    const selfPos = {
+      navigation: { position: { value: { latitude: 38.97, longitude: -76.49 } } },
+    };
+    const targets = [
+      {
+        id: 1,
+        status: 'tracking',
+        position: { bearing: 1.5, distance: 2500, latitude: 38.98, longitude: -76.5 },
+        motion: { course: 3.1, speed: 5.5 },
+        danger: { cpa: 150, tcpa: 1800 },
+      },
+    ];
+    const targetNoPos = [
+      { id: 2, status: 'acquiring', position: { bearing: 0.5, distance: 1000 } },
+    ];
+
+    test('no radar API (404) => available:false, no_provider', async () => {
+      mockFetch.mockResolvedValueOnce(err(404));
+      const r = await client.getRadarTargets();
+      expect(r.available).toBe(false);
+      expect(r.reason).toBe('no_provider');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('no radar devices ({}) => available:true, empty', async () => {
+      mockFetch.mockResolvedValueOnce(ok({}));
+      const r = await client.getRadarTargets();
+      expect(r.available).toBe(true);
+      expect(r.count).toBe(0);
+      expect(r.targets).toEqual([]);
+      expect(r.deviceStatus).toEqual({});
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('tags targets by radar_id and computes distanceMeters', async () => {
+      mockFetch.mockResolvedValueOnce(ok(radarList));
+      mockFetch.mockResolvedValueOnce(ok(selfPos));
+      mockFetch.mockResolvedValueOnce(ok(targets));
+      const r = await client.getRadarTargets();
+      expect(r.available).toBe(true);
+      expect(r.count).toBe(1);
+      expect(r.targets[0].radar_id).toBe('radar-1');
+      expect(r.targets[0].id).toBe(1);
+      expect(r.targets[0].danger).toEqual({ cpa: 150, tcpa: 1800 });
+      expect(r.targets[0].distanceMeters).toBeGreaterThan(0);
+      expect(r.deviceStatus).toEqual({ 'radar-1': 'ok' });
+    });
+
+    test('a target with no latitude/longitude has no distanceMeters', async () => {
+      mockFetch.mockResolvedValueOnce(ok(radarList));
+      mockFetch.mockResolvedValueOnce(ok(selfPos));
+      mockFetch.mockResolvedValueOnce(ok(targetNoPos));
+      const r = await client.getRadarTargets();
+      expect(r.targets[0].distanceMeters).toBeUndefined();
+    });
+
+    test('per-device 404 => not_found; other devices still report', async () => {
+      mockFetch.mockResolvedValueOnce(
+        ok({ 'radar-1': {}, 'radar-2': {} }),
+      );
+      mockFetch.mockResolvedValueOnce(ok(selfPos));
+      mockFetch.mockResolvedValueOnce(ok(targets)); // radar-1
+      mockFetch.mockResolvedValueOnce(err(404)); // radar-2
+      const r = await client.getRadarTargets();
+      expect(r.available).toBe(true);
+      expect(r.count).toBe(1);
+      expect(r.deviceStatus).toEqual({ 'radar-1': 'ok', 'radar-2': 'not_found' });
+    });
+
+    test('per-device 501 => no_arpa', async () => {
+      mockFetch.mockResolvedValueOnce(ok(radarList));
+      mockFetch.mockResolvedValueOnce(ok(selfPos));
+      mockFetch.mockResolvedValueOnce(err(501));
+      const r = await client.getRadarTargets();
+      expect(r.count).toBe(0);
+      expect(r.deviceStatus).toEqual({ 'radar-1': 'no_arpa' });
+    });
+
+    test('network error on the device list => available:false', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('network down'));
+      const r = await client.getRadarTargets();
+      expect(r.available).toBe(false);
+    });
+  });
+
   describe('History Methods', () => {
     beforeEach(() => {
       client = new SignalKClient({

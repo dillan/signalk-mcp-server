@@ -26,6 +26,8 @@ import type {
   ServerFeaturesResponse,
   ResourcesQueryOptions,
   ResourcesResponse,
+  RadarTarget,
+  RadarTargetsResponse,
 } from './types/index.js';
 
 export class SignalKClient extends EventEmitter {
@@ -791,6 +793,27 @@ export class SignalKClient extends EventEmitter {
         `Resources request failed: ${error?.message || String(error)}`,
       );
     }
+  }
+
+  /**
+   * Radar (M)ARPA targets across all radar devices (read-only). Lists the radar
+   * devices, reads each one's tracked targets, tags them by radar_id, and adds
+   * the great-circle distance from the vessel when the target has an absolute
+   * position. Per-device outcomes are reported in deviceStatus so a missing or
+   * unsupported radar is never silent. Never throws.
+   */
+  async getRadarTargets(): Promise<RadarTargetsResponse> {
+    // STUB - real implementation follows in the next commit.
+    await Promise.resolve();
+    return {
+      available: false,
+      connected: this.connected,
+      count: 0,
+      targets: [],
+      deviceStatus: {},
+      timestamp: new Date().toISOString(),
+      reason: 'not implemented',
+    };
   }
 
   /**
