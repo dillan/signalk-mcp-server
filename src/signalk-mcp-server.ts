@@ -462,6 +462,20 @@ export class SignalKMCPServer {
         },
       },
       {
+        name: 'get_course_status',
+        description:
+          'Get the current navigation course: the active route/destination plus ' +
+          'calculated values (cross-track error, bearing to the next waypoint, ETA, ' +
+          'velocity made good, time-to-go). Returns navigating:false with ' +
+          'calcValues:null when no destination is set. Requires a SignalK v2 server. ' +
+          'Check result.available.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false,
+        },
+      },
+      {
         name: 'get_connection_status',
         description: 'Get SignalK connection status and health. Useful for debugging and troubleshooting connectivity issues.',
         inputSchema: {
@@ -538,7 +552,7 @@ export class SignalKMCPServer {
             'IMPORTANT: ALL SDK functions are async and MUST be awaited, including getConnectionStatus(). ' +
             'Available functions: await getVesselState(), await getAisTargets(options), ' +
             'await getActiveAlarms(), await listAvailablePaths(), await getPathValue(path), await getConnectionStatus(), ' +
-            'await getHistory({paths, from, to, resolution}), await listHistoryPaths(options), await listHistoryContexts(options). ' +
+            'await getHistory({paths, from, to, resolution}), await listHistoryPaths(options), await listHistoryContexts(options), await getCourseStatus(). ' +
             'History needs a SignalK history provider - check result.available; times are ISO-8601 and resolution is in SECONDS. ' +
             'Code MUST: (1) be wrapped in async IIFE, (2) await all SDK calls, (3) return JSON.stringify() of result. ' +
             'Example: (async () => { const vessel = await getVesselState(); return JSON.stringify({ name: vessel.data.name?.value }); })()',
@@ -613,7 +627,7 @@ export class SignalKMCPServer {
               throw new McpError(
                 ErrorCode.MethodNotFound,
                 `Tool ${name} is not available in code-only mode. Use execute_code tool with SignalK SDK functions instead. ` +
-                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts()`,
+                `Available SDK functions: getVesselState(), getAisTargets(), getActiveAlarms(), listAvailablePaths(), getPathValue(), getHistory(), listHistoryPaths(), listHistoryContexts(), getCourseStatus()`,
               );
           }
         } catch (error: any) {

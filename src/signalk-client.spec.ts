@@ -1987,6 +1987,100 @@ describe('SignalKClient', () => {
     }, 15000);
   });
 
+  describe('getCourseStatus', () => {
+    beforeEach(() => {
+      client = new SignalKClient({
+        hostname: 'example.com',
+        port: 3000,
+        useTLS: false,
+      });
+    });
+
+    const ok = (body: any) =>
+      ({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
+    const err = (status: number, body: any) =>
+      ({
+        ok: false,
+        status,
+        statusText: 'err',
+        json: () => Promise.resolve(body),
+        text: () => Promise.resolve(JSON.stringify(body)),
+      } as Response);
+
+    // Scrubbed fixtures (shape captured from a live server, no real data).
+    const notNavigating = {
+      startTime: null,
+      targetArrivalTime: null,
+      arrivalCircle: 0,
+      activeRoute: null,
+      nextPoint: null,
+      previousPoint: null,
+    };
+    const navigating = {
+      startTime: '2026-01-01T00:00:00.000Z',
+      targetArrivalTime: null,
+      arrivalCircle: 100,
+      activeRoute: null,
+      nextPoint: { type: 'Location', position: { latitude: 1, longitude: 2 } },
+      previousPoint: { type: 'Location', position: { latitude: 0, longitude: 0 } },
+    };
+    const calc = {
+      distance: 1234,
+      bearingTrue: 1.2,
+      velocityMadeGood: 2.3,
+      timeToGo: 3600,
+      estimatedTimeOfArrival: '2026-01-01T01:00:00.000Z',
+      crossTrackError: 12,
+    };
+
+    test('not navigating: navigating:false, calcValues:null, no calcValues request', async () => {
+      mockFetch.mockResolvedValueOnce(ok(notNavigating));
+      const r = await client.getCourseStatus();
+      expect(r.available).toBe(true);
+      expect(r.navigating).toBe(false);
+      expect(r.course).toEqual(notNavigating);
+      expect(r.calcValues).toBeNull();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('navigating: merges /course and /course/calcValues', async () => {
+      mockFetch.mockResolvedValueOnce(ok(navigating));
+      mockFetch.mockResolvedValueOnce(ok(calc));
+      const r = await client.getCourseStatus();
+      expect(r.available).toBe(true);
+      expect(r.navigating).toBe(true);
+      expect(r.calcValues).toEqual(calc);
+      expect(decodeURIComponent(mockFetch.mock.calls[1][0] as string)).toContain(
+        '/navigation/course/calcValues',
+      );
+    });
+
+    test('a 400 from calcValues while navigating leaves calcValues null, not an error', async () => {
+      mockFetch.mockResolvedValueOnce(ok(navigating));
+      mockFetch.mockResolvedValueOnce(
+        err(400, { statusCode: 400, message: 'No active destination!' }),
+      );
+      const r = await client.getCourseStatus();
+      expect(r.available).toBe(true);
+      expect(r.navigating).toBe(true);
+      expect(r.calcValues).toBeNull();
+      expect(r.error).toBeUndefined();
+    });
+
+    test('course API unavailable (404) => available:false, never throws', async () => {
+      mockFetch.mockResolvedValueOnce(err(404, {}));
+      const r = await client.getCourseStatus();
+      expect(r.available).toBe(false);
+      expect(r.course).toBeNull();
+    });
+
+    test('network error => available:false, no throw', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('network down'));
+      const r = await client.getCourseStatus();
+      expect(r.available).toBe(false);
+    });
+  });
+
   describe('History Methods', () => {
     beforeEach(() => {
       client = new SignalKClient({

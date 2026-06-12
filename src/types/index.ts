@@ -39,6 +39,7 @@ export type {
   HistoryResponse,
   HistoryPathsResponse,
   HistoryContextsResponse,
+  CourseStatusResponse,
 } from './interfaces';
 
 export type {

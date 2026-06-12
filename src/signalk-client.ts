@@ -18,6 +18,7 @@ import type {
   HistoryDataPoint,
   HistoryPathsResponse,
   HistoryContextsResponse,
+  CourseStatusResponse,
 } from './types/index.js';
 
 export class SignalKClient extends EventEmitter {
@@ -174,6 +175,34 @@ export class SignalKClient extends EventEmitter {
     const queryString = query.toString();
     const suffix = queryString ? `?${queryString}` : '';
     return `${this.buildHttpUrl()}/signalk/v2/api/history/${endpoint}${suffix}`;
+  }
+
+  /**
+   * Build a SignalK v2 course API URL (under .../navigation/course).
+   * @param endpoint - '' for the course root, or 'calcValues'
+   */
+  buildCourseApiUrl(endpoint: string = ''): string {
+    const suffix = endpoint ? `/${endpoint}` : '';
+    return `${this.buildHttpUrl()}/signalk/v2/api/vessels/self/navigation/course${suffix}`;
+  }
+
+  /**
+   * Current navigation course: active route / destination plus calculated values
+   * (cross-track error, bearing, ETA, VMG, time-to-go). Reads /navigation/course
+   * (the source of truth for whether a destination is set) and, only when one is
+   * active, /navigation/course/calcValues. Returns navigating:false with
+   * calcValues:null when not navigating. Never throws.
+   */
+  async getCourseStatus(): Promise<CourseStatusResponse> {
+    // STUB - real implementation follows in the next commit.
+    return {
+      available: false,
+      connected: this.connected,
+      navigating: false,
+      course: null,
+      calcValues: null,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   /**

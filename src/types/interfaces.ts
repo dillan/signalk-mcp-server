@@ -154,3 +154,17 @@ export interface HistoryContextsResponse {
   timestamp: string;
   error?: string;
 }
+
+export interface CourseStatusResponse {
+  available: boolean;
+  connected: boolean;
+  // false when there is no active destination / route
+  navigating: boolean;
+  // the raw /navigation/course body (activeRoute, nextPoint, arrivalCircle, ...)
+  course: any | null;
+  // /navigation/course/calcValues (distance, bearing, ETA, cross-track error,
+  // VMG, time-to-go) - null when not navigating or unavailable
+  calcValues: any | null;
+  timestamp: string;
+  error?: string;
+}

@@ -10,6 +10,7 @@ import type {
   HistoryResponse,
   HistoryPathsResponse,
   HistoryContextsResponse,
+  CourseStatusResponse,
 } from '../types/index.js';
 
 /**
@@ -224,6 +225,21 @@ export class SignalKBinding {
     duration?: string | number;
   }): Promise<HistoryContextsResponse> {
     return this.client.listHistoryContexts(options);
+  }
+
+  /**
+   * Current navigation course - active route / destination plus calculated
+   * values (cross-track error, bearing, ETA, VMG, time-to-go).
+   *
+   * @returns CourseStatusResponse; available:false if the course API is
+   *   unavailable, navigating:false when no destination is set.
+   *
+   * @example
+   * const c = await signalk.getCourseStatus();
+   * if (c.navigating) console.log('XTE:', c.calcValues?.crossTrackError);
+   */
+  async getCourseStatus(): Promise<CourseStatusResponse> {
+    return this.client.getCourseStatus();
   }
 
   /**
