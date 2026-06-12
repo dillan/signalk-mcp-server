@@ -896,27 +896,33 @@ export class SignalKClient extends EventEmitter {
               s === 404 ? 'not_found' : s === 501 ? 'no_arpa' : 'error';
             return;
           }
-          deviceStatus[rid] = 'ok';
           const body: any = await response.json();
-          if (Array.isArray(body)) {
-            for (const t of body) {
-              const target: RadarTarget = { ...t, radar_id: rid };
-              const lat = t?.position?.latitude;
-              const lon = t?.position?.longitude;
-              if (
-                selfPosition &&
-                typeof lat === 'number' &&
-                typeof lon === 'number'
-              ) {
-                target.distanceMeters = this.calculateDistance(
-                  selfPosition.latitude,
-                  selfPosition.longitude,
-                  lat,
-                  lon,
-                );
-              }
-              targets.push(target);
+          if (!Array.isArray(body)) {
+            // A 200 with a non-array body is malformed - surface it instead of
+            // reporting the device as healthy with no targets.
+            deviceStatus[rid] = 'error';
+            return;
+          }
+          deviceStatus[rid] = 'ok';
+          for (const t of body) {
+            const target: RadarTarget = { ...t, radar_id: rid };
+            // Positions are degrees (SignalK spec); calculateDistance takes
+            // degrees. Only compute when both coordinates are finite.
+            const lat = t?.position?.latitude;
+            const lon = t?.position?.longitude;
+            if (
+              selfPosition &&
+              Number.isFinite(lat) &&
+              Number.isFinite(lon)
+            ) {
+              target.distanceMeters = this.calculateDistance(
+                selfPosition.latitude,
+                selfPosition.longitude,
+                lat,
+                lon,
+              );
             }
+            targets.push(target);
           }
         } catch {
           deviceStatus[rid] = 'error';

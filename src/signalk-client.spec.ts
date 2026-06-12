@@ -2771,6 +2771,15 @@ describe('SignalKClient', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
+    test('a 200 with a non-array body marks the device as error', async () => {
+      mockFetch.mockResolvedValueOnce(ok(radarList));
+      mockFetch.mockResolvedValueOnce(ok(selfPos));
+      mockFetch.mockResolvedValueOnce(ok({ unexpected: 'object' }));
+      const r = await client.getRadarTargets();
+      expect(r.count).toBe(0);
+      expect(r.deviceStatus).toEqual({ 'radar-1': 'error' });
+    });
+
     test('tags targets by radar_id and computes distanceMeters', async () => {
       mockFetch.mockResolvedValueOnce(ok(radarList));
       mockFetch.mockResolvedValueOnce(ok(selfPos));
