@@ -579,19 +579,45 @@ export class SignalKClient extends EventEmitter {
 
   /**
    * Server identity and available endpoints (GET /signalk). Read-only; needs no
-   * vessel position. Never throws.
+   * vessel position. A short timeout keeps callers responsive when the server is
+   * unreachable. Never throws.
    */
   async getServerInfo(): Promise<ServerInfoResponse> {
-    // STUB - real implementation follows in the next commit.
-    await Promise.resolve();
-    return {
+    const now = () => new Date().toISOString();
+    const degraded = (error?: string): ServerInfoResponse => ({
       available: false,
       connected: this.connected,
       name: null,
       version: null,
       endpoints: null,
-      timestamp: new Date().toISOString(),
-    };
+      timestamp: now(),
+      ...(error ? { error } : {}),
+    });
+
+    try {
+      const response = await this.fetchJson(
+        `${this.buildHttpUrl()}/signalk`,
+        {},
+        { timeoutMs: 5000 },
+      );
+      if (!response.ok) {
+        return degraded(`Server discovery failed (HTTP ${response.status})`);
+      }
+      const body: any = await response.json();
+      return {
+        available: true,
+        connected: this.connected,
+        name: body?.server?.id ?? null,
+        version: body?.server?.version ?? null,
+        endpoints: body?.endpoints ?? null,
+        timestamp: now(),
+      };
+    } catch (error: any) {
+      console.error('Failed to fetch server info via HTTP:', error.message);
+      return degraded(
+        `Server discovery request failed: ${error?.message || String(error)}`,
+      );
+    }
   }
 
   /**
@@ -599,15 +625,39 @@ export class SignalKClient extends EventEmitter {
    * Read-only; needs no vessel position. Never throws.
    */
   async getServerFeatures(): Promise<ServerFeaturesResponse> {
-    // STUB - real implementation follows in the next commit.
-    await Promise.resolve();
-    return {
+    const now = () => new Date().toISOString();
+    const degraded = (error?: string): ServerFeaturesResponse => ({
       available: false,
       connected: this.connected,
       apis: [],
       plugins: [],
-      timestamp: new Date().toISOString(),
-    };
+      timestamp: now(),
+      ...(error ? { error } : {}),
+    });
+
+    try {
+      const response = await this.fetchJson(
+        `${this.buildHttpUrl()}/signalk/v2/features`,
+        {},
+        { timeoutMs: 5000 },
+      );
+      if (!response.ok) {
+        return degraded(`Features request failed (HTTP ${response.status})`);
+      }
+      const body: any = await response.json();
+      return {
+        available: true,
+        connected: this.connected,
+        apis: Array.isArray(body?.apis) ? body.apis : [],
+        plugins: Array.isArray(body?.plugins) ? body.plugins : [],
+        timestamp: now(),
+      };
+    } catch (error: any) {
+      console.error('Failed to fetch server features via HTTP:', error.message);
+      return degraded(
+        `Features request failed: ${error?.message || String(error)}`,
+      );
+    }
   }
 
   /**

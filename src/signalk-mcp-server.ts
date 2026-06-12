@@ -72,6 +72,8 @@ export class SignalKMCPServer {
   private sandbox?: IsolateSandbox;
   private binding?: SignalKBinding;
   private sdkCode?: string;
+  // Memoized initial context (built once live discovery has answered).
+  private cachedInitialContext?: MCPToolResponse;
 
   /**
    * Creates a new SignalK MCP Server instance with configuration from options or environment variables
@@ -771,7 +773,7 @@ export class SignalKMCPServer {
               case 'get_connection_status':
                 return this.getConnectionStatus();
               case 'get_initial_context':
-                return this.getInitialContext();
+                return await this.getInitialContext();
               default:
                 throw new McpError(
                   ErrorCode.MethodNotFound,
@@ -785,7 +787,7 @@ export class SignalKMCPServer {
             case 'get_connection_status':
               return this.getConnectionStatus();
             case 'get_initial_context':
-              return this.getInitialContext();
+              return await this.getInitialContext();
             default:
               // Data-fetching tools not available in code mode
               throw new McpError(
@@ -1204,7 +1206,11 @@ export class SignalKMCPServer {
    * //   }
    * // }
    */
-  getInitialContext(): MCPToolResponse {
+  async getInitialContext(): Promise<MCPToolResponse> {
+    if (this.cachedInitialContext) {
+      return this.cachedInitialContext;
+    }
+
     const contextData: Record<string, any> = {
       server_info: {
         name: this.serverName,
@@ -1215,13 +1221,33 @@ export class SignalKMCPServer {
       },
     };
 
+    // Best-effort live discovery: the client uses a short timeout and degrades
+    // gracefully, so this stays fast (and never throws) when the SignalK server
+    // is unreachable. The available APIs tell an agent which reads will work.
+    const [info, features] = await Promise.all([
+      this.signalkClient.getServerInfo(),
+      this.signalkClient.getServerFeatures(),
+    ]);
+    if (info?.available) {
+      contextData.server_info.signalk_server = {
+        id: info.name,
+        version: info.version,
+      };
+    }
+    if (features?.available) {
+      contextData.server_features = {
+        apis: features.apis,
+        plugins: features.plugins,
+      };
+    }
+
     // Load all available resources
     for (const [uri, content] of this.resources.entries()) {
       const resourceKey = uri.replace('signalk://', '');
       contextData[resourceKey] = content;
     }
 
-    return {
+    const response: MCPToolResponse = {
       content: [
         {
           type: 'text',
@@ -1229,6 +1255,13 @@ export class SignalKMCPServer {
         },
       ],
     };
+
+    // Memoize only once the server has actually answered, so a transient outage
+    // at startup doesn't pin a degraded context for the whole session.
+    if (info?.available || features?.available) {
+      this.cachedInitialContext = response;
+    }
+    return response;
   }
 
   /**
