@@ -142,3 +142,7 @@ docker/signalk-config/*
 # Test results
 test-results/
 
+# Local-only reference: SignalK API specs downloaded from a live server.
+# Kept out of git so no server host / vessel data is ever committed.
+docs/signalk-api-specs/
+
