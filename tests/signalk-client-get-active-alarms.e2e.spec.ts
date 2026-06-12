@@ -140,6 +140,16 @@ describe('SignalK Client getActiveAlarms - Live Integration', () => {
           expect(alarm.message.length).toBeGreaterThan(0);
         }
 
+        // Optional enrichment - the alert methods and management status are
+        // only present when the server provides them, but must be well-typed.
+        if (alarm.method !== undefined) {
+          expect(Array.isArray(alarm.method)).toBe(true);
+        }
+        if (alarm.status !== undefined) {
+          expect(typeof alarm.status).toBe('object');
+          expect(alarm.status).not.toBeNull();
+        }
+
         // Timestamp validation
         expect(alarm.timestamp).toBeDefined();
         expect(typeof alarm.timestamp).toBe('string');

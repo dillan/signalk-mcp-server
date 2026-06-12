@@ -1583,12 +1583,21 @@ export class SignalKClient extends EventEmitter {
           if (currentPath.startsWith('notifications.') && value && typeof value === 'object' && 'value' in value) {
             const notifValue = (value as any).value;
             if (notifValue && notifValue.state) {
-              alarms.push({
+              const alarm: ActiveAlarm = {
                 path: currentPath,
                 state: notifValue.state,
                 message: notifValue.message || '',
                 timestamp: (value as any).timestamp || new Date().toISOString(),
-              });
+              };
+              // Optional enrichment - only added when the server provides it, so
+              // the existing path/state/message/timestamp contract is unchanged.
+              if (Array.isArray(notifValue.method)) {
+                alarm.method = notifValue.method;
+              }
+              if (notifValue.status && typeof notifValue.status === 'object') {
+                alarm.status = notifValue.status;
+              }
+              alarms.push(alarm);
             }
           } else if (value && typeof value === 'object' && !Array.isArray(value)) {
             extractNotifications(value, currentPath);
