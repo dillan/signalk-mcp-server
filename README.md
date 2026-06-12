@@ -25,25 +25,26 @@ npx signalk-mcp-server
 npm install -g signalk-mcp-server
 ```
 
-### Claude Desktop Configuration
+### Connect your AI assistant
 
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+This server works with any assistant that supports MCP and runs on your own
+computer. Pick yours for step-by-step setup:
 
-```json
-{
-  "mcpServers": {
-    "signalk": {
-      "command": "npx",
-      "args": ["signalk-mcp-server"],
-      "env": {
-        "SIGNALK_HOST": "localhost",
-        "SIGNALK_PORT": "3000",
-        "SIGNALK_TLS": "false"
-      }
-    }
-  }
-}
-```
+| Assistant | Guide |
+|-----------|-------|
+| Claude Code | [docs/clients/claude-code.md](docs/clients/claude-code.md) |
+| Claude Desktop | [docs/clients/claude-desktop.md](docs/clients/claude-desktop.md) |
+| Codex (OpenAI) | [docs/clients/codex-cli.md](docs/clients/codex-cli.md) |
+| Gemini CLI (Google) | [docs/clients/gemini-cli.md](docs/clients/gemini-cli.md) |
+| Cursor | [docs/clients/cursor.md](docs/clients/cursor.md) |
+| VS Code (GitHub Copilot) | [docs/clients/vscode.md](docs/clients/vscode.md) |
+| Windsurf | [docs/clients/windsurf.md](docs/clients/windsurf.md) |
+| Cline | [docs/clients/cline.md](docs/clients/cline.md) |
+| Zed | [docs/clients/zed.md](docs/clients/zed.md) |
+
+New to MCP, or don't see your assistant? Start with the
+[setup checklist](docs/clients/README.md), which also explains why the web
+versions of ChatGPT and Claude.ai can't connect yet.
 
 ### Basic Usage
 
@@ -392,7 +393,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [Model Context Protocol](https://modelcontextprotocol.io/)
 - [CHANGELOG.md](CHANGELOG.md) - Version history and migration guide
 - [TOOL-MIGRATION-GUIDE.md](TOOL-MIGRATION-GUIDE.md) - Detailed migration examples
-- [Claude Desktop MCP Docs](https://modelcontextprotocol.io/docs/tools/claude-desktop)
+- [Connecting your AI assistant](docs/clients/README.md) - setup guides for each supported client
 
 ## Credits
 
