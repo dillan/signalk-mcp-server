@@ -65,6 +65,33 @@
         "note": "This function is also async - MUST use await",
         "returns": "Object with connected, url, hostname, port, context, timestamp",
         "example": "const status = await getConnectionStatus();\nconsole.log('Connected:', status.connected);"
+      },
+      "getHistory": {
+        "signature": "await getHistory({ paths, from, to, duration, resolution, aggregate, context })",
+        "description": "Query aggregated historical time-series for one or more SignalK paths. Requires a SignalK history provider (e.g. signalk-to-influxdb).",
+        "parameters": {
+          "paths": "Path string or array of paths; add an inline aggregation method as path:method[:param], e.g. 'navigation.speedOverGround:sma:5'",
+          "from": "ISO-8601 start time; provide 'from' or 'duration'",
+          "to": "ISO-8601 end time (defaults to now)",
+          "duration": "ISO-8601 duration (PT1H) or seconds; use instead of 'from'",
+          "resolution": "Bucket size in SECONDS (not milliseconds), e.g. 60 for 1-minute buckets",
+          "aggregate": "Default method for bare paths: average|min|max|first|last (default average)",
+          "context": "Vessel context (default vessels.self)"
+        },
+        "returns": "{ available, values: { '<path>': [{ timestamp, value }] }, series, missingPaths, rowCount }. Check 'available' (false = no history provider). null marks a data gap. navigation.position values are [longitude, latitude] ARRAYS, unlike live getVesselState which uses {latitude, longitude}.",
+        "example": "(async () => {\n  const h = await getHistory({ paths: 'navigation.speedOverGround:max', from: '2026-06-11T06:00:00Z', to: '2026-06-11T12:00:00Z', resolution: 300 });\n  if (!h.available) return JSON.stringify({ note: h.error });\n  const pts = h.values['navigation.speedOverGround'].filter(p => p.value != null);\n  return JSON.stringify({ maxKn: (Math.max(...pts.map(p => p.value)) * 1.94384).toFixed(1) });\n})()"
+      },
+      "listHistoryPaths": {
+        "signature": "await listHistoryPaths(options?)",
+        "description": "List SignalK paths that have historical data in a time window. Defaults to the last 24 hours.",
+        "returns": "{ available, count, paths: string[] }. available:false means no history provider.",
+        "example": "const h = await listHistoryPaths();\nif (h.available) console.log(h.paths.length, 'historized paths');"
+      },
+      "listHistoryContexts": {
+        "signature": "await listHistoryContexts(options?)",
+        "description": "List vessel contexts that have historical data. Call before get_history to discover which vessels have history.",
+        "returns": "{ available, count, contexts: string[] }",
+        "example": "const h = await listHistoryContexts();\nif (h.available) console.log(h.contexts);"
       }
     }
   },
@@ -116,7 +143,11 @@
     "units": "All SignalK values use SI units (meters, seconds, Kelvin, radians)",
     "timestamps": "All data includes RFC 3339 timestamps for freshness checking",
     "missing_data": "Paths may not exist if sensors/systems not installed",
-    "null_values": "Null values indicate sensor offline or no valid reading"
+    "null_values": "Null values indicate sensor offline or no valid reading",
+    "history_times": "History query times are ISO-8601 only; resolution is in SECONDS (not milliseconds)",
+    "history_positions": "In history results, navigation.position is a [longitude, latitude] array - NOT the {latitude, longitude} object that live getVesselState/getPathValue return",
+    "history_gaps": "In history results, null marks a time bucket with no data - filter nulls before averaging or integrating",
+    "history_availability": "get_history/list_history_* return available:false when the SignalK server has no history provider installed"
   },
   "legacy_tools": {
     "status": "DEPRECATED - Available only in 'tools' or 'hybrid' mode",

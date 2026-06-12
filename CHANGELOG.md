@@ -5,6 +5,17 @@ All notable changes to the SignalK MCP Server project will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **SignalK History API support.** Three new SDK functions are available inside `execute_code`:
+  - `getHistory({ paths, from, to, duration, resolution, aggregate, context })` - query aggregated historical time-series for one or more paths.
+  - `listHistoryPaths(options?)` - list paths that have history in a time window.
+  - `listHistoryContexts(options?)` - list vessels that have history.
+- Queries the SignalK v2 History API (`/signalk/v2/api/history/...`) and reshapes the tabular response into easy per-path lists of `{ timestamp, value }` points, so agent code can summarize thousands of rows down to a few numbers inside the isolate.
+- Notes for callers: times are ISO-8601 and `resolution` is in **seconds**; aggregation can be set inline per path (e.g. `navigation.speedOverGround:max`); `navigation.position` history values are `[longitude, latitude]` arrays (unlike the live API's `{latitude, longitude}`); and `null` marks a data gap.
+- Requires a SignalK server with a history provider (e.g. `signalk-to-influxdb`). When none is installed, the functions return `available: false` instead of failing, so code-execution mode keeps working.
+
 ## [1.0.8] - 2025-11-26
 
 ### Fixed
